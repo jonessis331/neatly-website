@@ -1,3 +1,4 @@
+// src/components/LandingPage.tsx - Fixed version
 import React, { useMemo, useState, useEffect } from "react";
 import {
   Box,
@@ -25,16 +26,13 @@ import {
   AccordionDetails,
   Stack,
   Divider,
-  Badge,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import {
   AutoAwesome,
-  Folder,
-  Star,
   LightMode,
   DarkMode,
-  Speed,
-  Security,
   CloudDone,
   CheckCircle,
   ExpandMore,
@@ -51,6 +49,9 @@ import {
   Analytics,
   Support,
 } from "@mui/icons-material";
+import { useAuth } from "../contexts/AuthContext";
+import { AuthDialog } from "./Auth";
+import { createCheckoutSession, pricingTiers } from "../services/stripe";
 
 const getDesignTokens = (mode: "light" | "dark") => ({
   palette: {
@@ -80,7 +81,7 @@ const getDesignTokens = (mode: "light" | "dark") => ({
     h3: { fontWeight: 600, fontSize: "2rem" },
     h4: { fontWeight: 600, fontSize: "1.5rem" },
     h5: { fontWeight: 500 },
-    button: { textTransform: "none", fontWeight: 600 },
+    button: { textTransform: "none" as const, fontWeight: 600 },
   },
   components: {
     MuiButton: {
@@ -97,54 +98,6 @@ const getDesignTokens = (mode: "light" | "dark") => ({
     },
   },
 });
-
-const pricingTiers = [
-  {
-    title: "Starter",
-    price: "$9",
-    period: "/month",
-    credits: "10 credits",
-    features: [
-      "5,000 files organized/month",
-      "Basic AI categorization",
-      "Email support",
-      "Export organization plans",
-    ],
-    stripeLink: "https://buy.stripe.com/test_starter",
-    popular: false,
-  },
-  {
-    title: "Professional",
-    price: "$29",
-    period: "/month",
-    credits: "50 credits",
-    features: [
-      "25,000 files organized/month",
-      "Advanced AI with custom rules",
-      "Priority support",
-      "Bulk operations",
-      "Organization analytics",
-    ],
-    stripeLink: "https://buy.stripe.com/test_pro",
-    popular: true,
-  },
-  {
-    title: "Enterprise",
-    price: "$99",
-    period: "/month",
-    credits: "Unlimited",
-    features: [
-      "Unlimited file organization",
-      "Custom AI training",
-      "Dedicated support",
-      "API access",
-      "Team collaboration",
-      "White-label options",
-    ],
-    stripeLink: "https://buy.stripe.com/test_enterprise",
-    popular: false,
-  },
-];
 
 const features = [
   {
@@ -209,15 +162,32 @@ const faqs = [
   },
 ];
 
-const LandingPage: React.FC = () => {
+interface LandingPageProps {
+  onNavigateToDashboard: () => void;
+}
+
+export const LandingPage: React.FC<LandingPageProps> = ({
+  onNavigateToDashboard,
+}) => {
   const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
   const [mode, setMode] = useState<"light" | "dark">(
     prefersDark ? "dark" : "light"
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("home");
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [authDialogTab, setAuthDialogTab] = useState<"login" | "signup">(
+    "login"
+  );
+  const [paymentLoading, setPaymentLoading] = useState<string | null>(null);
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertSeverity, setAlertSeverity] = useState<"success" | "error">(
+    "success"
+  );
+
   const theme = useMemo(() => createTheme(getDesignTokens(mode)), [mode]);
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const { user, profile, loading } = useAuth();
 
   // Sync with system preference changes
   useEffect(() => {
@@ -261,12 +231,49 @@ const LandingPage: React.FC = () => {
     setMobileMenuOpen(false);
   };
 
+  const handleLogin = () => {
+    setAuthDialogTab("login");
+    setAuthDialogOpen(true);
+  };
+
+  const handleSignup = () => {
+    setAuthDialogTab("signup");
+    setAuthDialogOpen(true);
+  };
+
+  const handleSubscribe = async (priceId: string, tierId: string) => {
+    if (!user) {
+      setAlertMessage("Please login or create an account first");
+      setAlertSeverity("error");
+      handleSignup();
+      return;
+    }
+
+    setPaymentLoading(tierId);
+    try {
+      await createCheckoutSession(priceId, user.id);
+    } catch (error) {
+      console.error("Payment error:", error);
+      setAlertMessage("Payment failed. Please try again.");
+      setAlertSeverity("error");
+    } finally {
+      setPaymentLoading(null);
+    }
+  };
+
   const navItems = [
     { label: "How it Works", section: "how" },
     { label: "Features", section: "features" },
     { label: "Pricing", section: "pricing" },
     { label: "FAQ", section: "faq" },
   ];
+
+  // Redirect to dashboard if user is logged in and tries to access pricing
+  useEffect(() => {
+    if (user && window.location.hash === "#pricing") {
+      onNavigateToDashboard();
+    }
+  }, [user, onNavigateToDashboard]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -278,6 +285,17 @@ const LandingPage: React.FC = () => {
           width: "100%",
         }}
       >
+        {/* Alert Messages */}
+        {alertMessage && (
+          <Alert
+            severity={alertSeverity}
+            sx={{ mb: 2 }}
+            onClose={() => setAlertMessage("")}
+          >
+            {alertMessage}
+          </Alert>
+        )}
+
         {/* Navigation */}
         <AppBar
           position="sticky"
@@ -327,18 +345,42 @@ const LandingPage: React.FC = () => {
                       {item.label}
                     </Button>
                   ))}
-                  <Button variant="text" sx={{ mx: 1 }}>
-                    Login
-                  </Button>
-                  <Button
-                    variant="contained"
-                    sx={{
-                      ml: 1,
-                      background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                    }}
-                  >
-                    Sign Up
-                  </Button>
+
+                  {loading ? (
+                    <CircularProgress size={24} sx={{ mx: 2 }} />
+                  ) : user ? (
+                    <Button
+                      variant="contained"
+                      onClick={onNavigateToDashboard}
+                      sx={{
+                        ml: 1,
+                        background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                      }}
+                    >
+                      Dashboard
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        variant="text"
+                        sx={{ mx: 1 }}
+                        onClick={handleLogin}
+                      >
+                        Login
+                      </Button>
+                      <Button
+                        variant="contained"
+                        onClick={handleSignup}
+                        sx={{
+                          ml: 1,
+                          background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                        }}
+                      >
+                        Sign Up
+                      </Button>
+                    </>
+                  )}
+
                   <IconButton
                     onClick={() => setMode(mode === "light" ? "dark" : "light")}
                     sx={{ ml: 2 }}
@@ -384,12 +426,32 @@ const LandingPage: React.FC = () => {
                   </Button>
                 ))}
                 <Divider />
-                <Button fullWidth variant="outlined">
-                  Login
-                </Button>
-                <Button fullWidth variant="contained">
-                  Sign Up
-                </Button>
+
+                {loading ? (
+                  <CircularProgress sx={{ alignSelf: "center" }} />
+                ) : user ? (
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    onClick={onNavigateToDashboard}
+                  >
+                    Dashboard
+                  </Button>
+                ) : (
+                  <>
+                    <Button fullWidth variant="outlined" onClick={handleLogin}>
+                      Login
+                    </Button>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      onClick={handleSignup}
+                    >
+                      Sign Up
+                    </Button>
+                  </>
+                )}
+
                 <Box sx={{ display: "flex", justifyContent: "center" }}>
                   <IconButton
                     onClick={() => setMode(mode === "light" ? "dark" : "light")}
@@ -409,7 +471,7 @@ const LandingPage: React.FC = () => {
         >
           <Container maxWidth={false} sx={{ maxWidth: "100%", mx: "auto" }}>
             <Grid container spacing={4} alignItems="center">
-              <Grid item xs={12} md={6}>
+              <Grid xs={12} md={6}>
                 <Fade in timeout={1000}>
                   <Box>
                     <Typography
@@ -445,19 +507,35 @@ const LandingPage: React.FC = () => {
                       principles. Clean up thousands of files in minutes.
                     </Typography>
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                      <Button
-                        variant="contained"
-                        size="large"
-                        endIcon={<ArrowForward />}
-                        sx={{
-                          background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                          px: 4,
-                          py: 1.5,
-                        }}
-                        onClick={() => scrollToSection("pricing")}
-                      >
-                        Start Free Trial
-                      </Button>
+                      {user ? (
+                        <Button
+                          variant="contained"
+                          size="large"
+                          endIcon={<ArrowForward />}
+                          onClick={onNavigateToDashboard}
+                          sx={{
+                            background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                            px: 4,
+                            py: 1.5,
+                          }}
+                        >
+                          Go to Dashboard
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="contained"
+                          size="large"
+                          endIcon={<ArrowForward />}
+                          onClick={handleSignup}
+                          sx={{
+                            background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                            px: 4,
+                            py: 1.5,
+                          }}
+                        >
+                          Start Free Trial
+                        </Button>
+                      )}
                       <Button
                         variant="outlined"
                         size="large"
@@ -479,7 +557,7 @@ const LandingPage: React.FC = () => {
                   </Box>
                 </Fade>
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid xs={12} md={6}>
                 <Grow in timeout={1500}>
                   <Box
                     sx={{
@@ -594,7 +672,7 @@ const LandingPage: React.FC = () => {
                   icon: <CheckCircle />,
                 },
               ].map((item, index) => (
-                <Grid item xs={12} sm={6} md={3} key={index}>
+                <Grid xs={12} sm={6} md={3} key={index}>
                   <Fade in timeout={1000 + index * 200}>
                     <Card
                       sx={{
@@ -659,7 +737,7 @@ const LandingPage: React.FC = () => {
             </Typography>
             <Grid container spacing={4}>
               {features.map((feature, index) => (
-                <Grid item xs={12} sm={6} md={4} key={index}>
+                <Grid xs={12} sm={6} md={4} key={index}>
                   <Grow in timeout={1000 + index * 100}>
                     <Card
                       sx={{
@@ -721,11 +799,11 @@ const LandingPage: React.FC = () => {
               color="text.secondary"
               sx={{ mb: 6 }}
             >
-              Start free, upgrade when you need mores
+              Start free, upgrade when you need more
             </Typography>
             <Grid container spacing={4} alignItems="stretch">
               {pricingTiers.map((tier, index) => (
-                <Grid item xs={12} md={4} key={index}>
+                <Grid xs={12} md={4} key={index}>
                   <Grow in timeout={1000 + index * 200}>
                     <Card
                       sx={{
@@ -795,7 +873,10 @@ const LandingPage: React.FC = () => {
                         fullWidth
                         variant={tier.popular ? "contained" : "outlined"}
                         size="large"
-                        href={tier.stripeLink}
+                        onClick={() =>
+                          handleSubscribe(tier.stripePrice, tier.id)
+                        }
+                        disabled={paymentLoading === tier.id}
                         sx={
                           tier.popular
                             ? {
@@ -804,7 +885,11 @@ const LandingPage: React.FC = () => {
                             : {}
                         }
                       >
-                        Get Started
+                        {paymentLoading === tier.id ? (
+                          <CircularProgress size={24} />
+                        ) : (
+                          "Get Started"
+                        )}
                       </Button>
                     </Card>
                   </Grow>
@@ -870,21 +955,41 @@ const LandingPage: React.FC = () => {
               Join thousands who've discovered the joy of organized digital
               spaces
             </Typography>
-            <Button
-              variant="contained"
-              size="large"
-              sx={{
-                bgcolor: "white",
-                color: "primary.main",
-                px: 4,
-                py: 1.5,
-                "&:hover": {
-                  bgcolor: "grey.100",
-                },
-              }}
-            >
-              Start Your Free Trial
-            </Button>
+            {user ? (
+              <Button
+                variant="contained"
+                size="large"
+                onClick={onNavigateToDashboard}
+                sx={{
+                  bgcolor: "white",
+                  color: "primary.main",
+                  px: 4,
+                  py: 1.5,
+                  "&:hover": {
+                    bgcolor: "grey.100",
+                  },
+                }}
+              >
+                Go to Dashboard
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                size="large"
+                onClick={handleSignup}
+                sx={{
+                  bgcolor: "white",
+                  color: "primary.main",
+                  px: 4,
+                  py: 1.5,
+                  "&:hover": {
+                    bgcolor: "grey.100",
+                  },
+                }}
+              >
+                Start Your Free Trial
+              </Button>
+            )}
           </Container>
         </Box>
 
@@ -899,7 +1004,7 @@ const LandingPage: React.FC = () => {
         >
           <Container maxWidth={false} sx={{ maxWidth: "100%", mx: "auto" }}>
             <Grid container spacing={4}>
-              <Grid item xs={12} md={4}>
+              <Grid xs={12} md={4}>
                 <Typography
                   variant="h5"
                   gutterBottom
@@ -927,7 +1032,7 @@ const LandingPage: React.FC = () => {
                   </IconButton>
                 </Stack>
               </Grid>
-              <Grid item xs={6} md={2}>
+              <Grid xs={6} md={2}>
                 <Typography variant="subtitle1" gutterBottom>
                   Product
                 </Typography>
@@ -936,6 +1041,7 @@ const LandingPage: React.FC = () => {
                     variant="body2"
                     color="text.secondary"
                     sx={{ cursor: "pointer" }}
+                    onClick={() => scrollToSection("features")}
                   >
                     Features
                   </Typography>
@@ -943,6 +1049,7 @@ const LandingPage: React.FC = () => {
                     variant="body2"
                     color="text.secondary"
                     sx={{ cursor: "pointer" }}
+                    onClick={() => scrollToSection("pricing")}
                   >
                     Pricing
                   </Typography>
@@ -950,12 +1057,13 @@ const LandingPage: React.FC = () => {
                     variant="body2"
                     color="text.secondary"
                     sx={{ cursor: "pointer" }}
+                    onClick={() => scrollToSection("faq")}
                   >
                     FAQ
                   </Typography>
                 </Stack>
               </Grid>
-              <Grid item xs={6} md={2}>
+              <Grid xs={6} md={2}>
                 <Typography variant="subtitle1" gutterBottom>
                   Company
                 </Typography>
@@ -983,7 +1091,7 @@ const LandingPage: React.FC = () => {
                   </Typography>
                 </Stack>
               </Grid>
-              <Grid item xs={6} md={2}>
+              <Grid xs={6} md={2}>
                 <Typography variant="subtitle1" gutterBottom>
                   Legal
                 </Typography>
@@ -1011,7 +1119,7 @@ const LandingPage: React.FC = () => {
                   </Typography>
                 </Stack>
               </Grid>
-              <Grid item xs={6} md={2}>
+              <Grid xs={6} md={2}>
                 <Typography variant="subtitle1" gutterBottom>
                   Support
                 </Typography>
@@ -1051,8 +1159,13 @@ const LandingPage: React.FC = () => {
           </Container>
         </Box>
       </Box>
+
+      {/* Auth Dialog */}
+      <AuthDialog
+        open={authDialogOpen}
+        onClose={() => setAuthDialogOpen(false)}
+        initialTab={authDialogTab}
+      />
     </ThemeProvider>
   );
 };
-
-export default LandingPage;
