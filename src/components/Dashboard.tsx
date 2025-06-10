@@ -1,4 +1,4 @@
-// src/components/Dashboard.tsx - Enhanced with animations and fixed navigation
+// src/components/Dashboard.tsx - Updated with navbar integration
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
@@ -8,15 +8,8 @@ import {
   Card,
   CardContent,
   Grid,
-  AppBar,
-  Toolbar,
-  IconButton,
-  Menu,
-  MenuItem,
-  LinearProgress,
-  Chip,
-  Alert,
   Stack,
+  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -31,37 +24,44 @@ import {
   Zoom,
   Slide,
   keyframes,
+  LinearProgress,
+  Avatar,
+  Chip,
+  CircularProgress,
 } from "@mui/material";
 import {
-  AccountCircle,
   Download,
   CloudDownload,
   Analytics,
-  Settings,
-  ExitToApp,
   CheckCircle,
-  LightMode,
-  DarkMode,
   FolderOpen,
   TrendingUp,
   CloudDone,
   Security,
-  ArrowBack,
-  Dashboard as DashboardIcon,
-  CreditCard,
-  History,
   AutoAwesome,
+  History,
+  CreditCard,
+  Computer,
 } from "@mui/icons-material";
 import { useAuth } from "../contexts/AuthContext";
 import { createPortalSession } from "../services/stripe";
+import { Navbar } from "./common/Navbar";
+import { Footer } from "./common/Footer";
 
-type AppView = "landing" | "dashboard";
+type Route =
+  | "landing"
+  | "dashboard"
+  | "contact-support"
+  | "refund-policy"
+  | "terms-of-service"
+  | "cancellation-policy";
 
 interface DashboardProps {
+  onNavigate: (route: Route) => void;
   onNavigateToLanding?: () => void;
   onGoBack?: () => void;
   canGoBack?: boolean;
-  currentView?: AppView;
+  currentRoute: Route;
 }
 
 // Animation keyframes
@@ -146,20 +146,45 @@ const getDesignTokens = (mode: "light" | "dark") => ({
   },
 });
 
+// Auto-download functionality
+const detectOS = (): "mac" | "windows" | "unknown" => {
+  const userAgent = navigator.userAgent.toLowerCase();
+  if (userAgent.includes("mac")) return "mac";
+  if (userAgent.includes("win")) return "windows";
+  return "unknown";
+};
+
+const downloadApp = (os: "mac" | "windows") => {
+  const downloadLinks = {
+    mac: "/downloads/neatly-mac.dmg",
+    windows: "/downloads/neatly-windows.exe",
+  };
+
+  // Create temporary link and trigger download
+  const link = document.createElement("a");
+  link.href = downloadLinks[os];
+  link.download = `neatly-${os === "mac" ? "mac.dmg" : "windows.exe"}`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
 export const Dashboard: React.FC<DashboardProps> = ({
+  onNavigate,
   onNavigateToLanding,
   onGoBack,
-  canGoBack = false,
+  canGoBack,
+  currentRoute,
 }) => {
   const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
   const [mode, setMode] = useState<"light" | "dark">(
     prefersDark ? "dark" : "light"
   );
-  const { user, profile, signOut } = useAuth();
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const { user, profile } = useAuth();
   const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [hasAutoDownloaded, setHasAutoDownloaded] = useState(false);
 
   const theme = useMemo(() => createTheme(getDesignTokens(mode)), [mode]);
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -168,10 +193,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setMode(prefersDark ? "dark" : "light");
   }, [prefersDark]);
 
+  // Check for trial success and trigger download
   useEffect(() => {
-    // Check for success parameter in URL
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("success") === "true") {
+    if (urlParams.get("trial") === "success") {
+      setSuccessMessage("Trial activated! Downloading Neatly...");
+
+      // Auto-download after successful trial signup
+      const os = detectOS();
+      if (os !== "unknown") {
+        setTimeout(() => {
+          downloadApp(os);
+        }, 2000);
+      }
+
+      // Clean up URL
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (urlParams.get("success") === "true") {
       setSuccessMessage(
         "Payment successful! Your subscription has been activated."
       );
@@ -180,13 +218,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   }, []);
 
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
+  // Remove auto-download on first visit - now handled after trial payment
 
   const handleManageSubscription = async () => {
     if (profile?.stripe_customer_id) {
@@ -202,7 +234,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
         setIsLoading(false);
       }
     }
-    handleMenuClose();
   };
 
   const handleDownloadApp = () => {
@@ -239,19 +270,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
     ? Math.max(0, Math.min(100, (profile.credits_remaining / 50) * 100))
     : 0;
 
-  // Handle back navigation properly
-  const handleBackClick = () => {
-    if (onGoBack) {
-      onGoBack();
-    } else if (onNavigateToLanding) {
-      onNavigateToLanding();
-    }
-  };
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+      <Box
+        sx={{
+          minHeight: "100vh",
+          bgcolor: "background.default",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         {successMessage && (
           <Slide direction="down" in={!!successMessage}>
             <Alert
@@ -271,131 +300,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </Slide>
         )}
 
-        {/* Header */}
-        <AppBar
-          position="sticky"
-          elevation={0}
-          sx={{
-            bgcolor: alpha(theme.palette.background.paper, 0.95),
-            backdropFilter: "blur(20px)",
-            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-          }}
-        >
-          <Container maxWidth="xl">
-            <Toolbar sx={{ py: 1 }}>
-              <Stack
-                direction="row"
-                alignItems="center"
-                spacing={2}
-                sx={{ flexGrow: 1 }}
-              >
-                {canGoBack && (
-                  <Zoom in>
-                    <IconButton
-                      onClick={handleBackClick}
-                      sx={{
-                        transition: "all 0.3s ease",
-                        "&:hover": {
-                          transform: "translateX(-4px)",
-                          bgcolor: alpha(theme.palette.primary.main, 0.1),
-                        },
-                      }}
-                    >
-                      <ArrowBack />
-                    </IconButton>
-                  </Zoom>
-                )}
+        {/* Navigation */}
+        <Navbar
+          mode={mode}
+          onToggleMode={() => setMode(mode === "light" ? "dark" : "light")}
+          onNavigate={onNavigate}
+          onGoBack={onGoBack}
+          canGoBack={canGoBack}
+          currentRoute={currentRoute}
+          showBackButton={false}
+        />
 
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    cursor: "pointer",
-                    animation: `${pulse} 3s ease-in-out infinite`,
-                  }}
-                  onClick={() => onNavigateToLanding && onNavigateToLanding()}
-                >
-                  <FolderOpen
-                    sx={{
-                      fontSize: 32,
-                      mr: 1,
-                      color: "primary.main",
-                    }}
-                  />
-                  <Typography
-                    variant="h4"
-                    sx={{
-                      fontWeight: 800,
-                      background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                      backgroundClip: "text",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                    }}
-                  >
-                    Neatly
-                  </Typography>
-                </Box>
-              </Stack>
-
-              <Stack direction="row" spacing={1} alignItems="center">
-                <IconButton
-                  onClick={() => setMode(mode === "light" ? "dark" : "light")}
-                  sx={{
-                    transition: "transform 0.3s ease",
-                    "&:hover": {
-                      transform: "rotate(180deg)",
-                    },
-                  }}
-                >
-                  {mode === "light" ? <DarkMode /> : <LightMode />}
-                </IconButton>
-
-                <IconButton
-                  size="large"
-                  onClick={handleMenuOpen}
-                  color="inherit"
-                  sx={{
-                    transition: "all 0.3s ease",
-                    "&:hover": {
-                      bgcolor: alpha(theme.palette.primary.main, 0.1),
-                    },
-                  }}
-                >
-                  <AccountCircle />
-                </IconButton>
-              </Stack>
-
-              <Menu
-                anchorEl={anchorEl}
-                open={Boolean(anchorEl)}
-                onClose={handleMenuClose}
-                PaperProps={{
-                  sx: {
-                    borderRadius: 2,
-                    boxShadow: `0 8px 32px ${alpha(
-                      theme.palette.common.black,
-                      0.12
-                    )}`,
-                    mt: 1,
-                  },
-                }}
-                transformOrigin={{ horizontal: "right", vertical: "top" }}
-                anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
-              >
-                <MenuItem onClick={handleManageSubscription}>
-                  <Settings sx={{ mr: 2 }} />
-                  Manage Subscription
-                </MenuItem>
-                <MenuItem onClick={signOut}>
-                  <ExitToApp sx={{ mr: 2 }} />
-                  Sign Out
-                </MenuItem>
-              </Menu>
-            </Toolbar>
-          </Container>
-        </AppBar>
-
-        <Container maxWidth="xl" sx={{ py: { xs: 4, md: 6 } }}>
+        <Container maxWidth="xl" sx={{ py: { xs: 4, md: 6 }, flex: 1 }}>
           {/* Welcome Section */}
           <Box sx={{ mb: { xs: 6, md: 8 }, textAlign: "center" }}>
             <Fade in timeout={600}>
@@ -462,13 +378,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 >
                   <CardContent sx={{ p: 4, position: "relative", zIndex: 1 }}>
                     <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
-                      <AccountCircle
+                      <Avatar
                         sx={{
-                          fontSize: 40,
-                          color: "primary.main",
+                          bgcolor: "primary.main",
+                          width: 48,
+                          height: 48,
                           mr: 2,
                         }}
-                      />
+                      >
+                        {profile?.full_name?.charAt(0) ||
+                          user?.email?.charAt(0) ||
+                          "U"}
+                      </Avatar>
                       <Typography variant="h5" fontWeight={600}>
                         Account Overview
                       </Typography>
@@ -556,6 +477,28 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             }}
                           />
                         </Box>
+                      </Fade>
+
+                      <Fade in timeout={1600}>
+                        <Button
+                          variant="outlined"
+                          fullWidth
+                          onClick={handleManageSubscription}
+                          disabled={isLoading}
+                          sx={{
+                            mt: 2,
+                            borderWidth: 2,
+                            "&:hover": {
+                              borderWidth: 2,
+                            },
+                          }}
+                        >
+                          {isLoading ? (
+                            <CircularProgress size={20} />
+                          ) : (
+                            "Manage Subscription"
+                          )}
+                        </Button>
                       </Fade>
                     </Stack>
                   </CardContent>
@@ -891,8 +834,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <Button
                     variant="outlined"
                     startIcon={<CloudDownload />}
-                    href={download.link}
-                    download
+                    onClick={() => {
+                      const link = document.createElement("a");
+                      link.href = download.link;
+                      link.download = `neatly-${download.platform.toLowerCase()}${
+                        download.extension
+                      }`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      setDownloadDialogOpen(false);
+                    }}
                     fullWidth
                     sx={{
                       py: 1.5,
@@ -921,6 +873,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </Button>
           </DialogActions>
         </Dialog>
+
+        <Footer onNavigate={onNavigate} currentRoute={currentRoute} />
       </Box>
     </ThemeProvider>
   );

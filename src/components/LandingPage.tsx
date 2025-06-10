@@ -1,5 +1,5 @@
-// src/components/LandingPage.tsx - Complete version with animations
-import React, { useMemo, useState, useEffect } from "react";
+// src/components/LandingPage.tsx - Updated with new layout and navbar integration
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Button,
@@ -8,73 +8,68 @@ import {
   Container,
   CssBaseline,
   Grid,
-  IconButton,
-  ThemeProvider,
   Typography,
   createTheme,
   useMediaQuery,
-  AppBar,
-  Toolbar,
   Chip,
   LinearProgress,
   alpha,
   Fade,
   Grow,
-  useScrollTrigger,
+  Zoom,
+  Slide,
+  Stack,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Stack,
-  Divider,
-  CircularProgress,
   Alert,
   Paper,
   Avatar,
-  Slide,
-  Zoom,
   keyframes,
+  ThemeProvider,
 } from "@mui/material";
 import {
   AutoAwesome,
-  LightMode,
-  DarkMode,
-  CloudDone,
   CheckCircle,
   ExpandMore,
   ArrowForward,
-  GitHub,
-  Twitter,
-  LinkedIn,
-  Menu as MenuIcon,
-  Close,
+  PlayArrow,
   FolderOpen,
   Scanner,
   AutoFixHigh,
   Backup,
-  Analytics,
-  Support,
-  Security,
-  Computer,
   PrivacyTip,
   Speed,
-  Undo,
-  Folder,
-  PlayArrow,
   Code,
   School,
+  Computer,
+  CloudDone,
+  Security,
 } from "@mui/icons-material";
 import { useAuth } from "../contexts/AuthContext";
 import { AuthDialog } from "./Auth";
-import { createCheckoutSession, pricingTiers } from "../services/stripe";
+import {
+  createCheckoutSession,
+  createTrialSession,
+  pricingTiers,
+} from "../services/stripe";
+import { Navbar } from "./common/Navbar";
+import { Footer } from "./common/Footer";
 
-type AppView = "landing" | "dashboard";
+type Route =
+  | "landing"
+  | "dashboard"
+  | "contact-support"
+  | "refund-policy"
+  | "terms-of-service"
+  | "cancellation-policy";
 
 interface LandingPageProps {
+  onNavigate: (route: Route) => void;
   onNavigateToDashboard: () => void;
-  onNavigateToLanding?: () => void;
   onGoBack?: () => void;
   canGoBack?: boolean;
-  currentView?: AppView;
+  currentRoute: Route;
 }
 
 // Animation keyframes
@@ -201,7 +196,7 @@ const features = [
       "Preserves project folders, respects .gitignore, skips node_modules automatically",
     highlight: "Built by Devs",
   },
-];
+].slice(0, 6); // Limit to 6 features (2 rows of 3)
 
 const steps = [
   {
@@ -241,21 +236,21 @@ const steps = [
 const testimonials = [
   {
     name: "Sarah Chen",
-    role: "CS Senior @ Columbia",
+    role: "Software Engineer",
     content:
-      "Finally cleaned up 4 years of coursework. The AI actually understood my project structure!",
+      "Finally cleaned up 4 years of project files. The AI actually understood my folder structure!",
     avatar: "/assets/avatar-sarah.jpg",
   },
   {
     name: "Marcus Rodriguez",
-    role: "Data Science @ NYU",
+    role: "Data Scientist",
     content:
       "Organized 50GB of research data in 5 minutes. The privacy guarantees sold me immediately.",
     avatar: "/assets/avatar-marcus.jpg",
   },
   {
     name: "Alex Kim",
-    role: "Software Engineer @ Google",
+    role: "Product Manager",
     content:
       "This is what I've been building myself for years. Clean, simple, actually works.",
     avatar: "/assets/avatar-alex.jpg",
@@ -291,14 +286,16 @@ const faqs = [
 ];
 
 export const LandingPage: React.FC<LandingPageProps> = ({
+  onNavigate,
   onNavigateToDashboard,
+  onGoBack,
+  canGoBack,
+  currentRoute,
 }) => {
   const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
   const [mode, setMode] = useState<"light" | "dark">(
     prefersDark ? "dark" : "light"
   );
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState("home");
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authDialogTab, setAuthDialogTab] = useState<"login" | "signup">(
     "login"
@@ -317,43 +314,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setMode(prefersDark ? "dark" : "light");
   }, [prefersDark]);
 
-  const trigger = useScrollTrigger({
-    disableHysteresis: true,
-    threshold: 0,
-  });
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const sections = ["home", "how", "features", "pricing", "faq"];
-      const scrollPosition = window.scrollY + 100;
-
-      for (const section of sections) {
-        const element = document.getElementById(section);
-        if (element) {
-          const { offsetTop, offsetHeight } = element;
-          if (
-            scrollPosition >= offsetTop &&
-            scrollPosition < offsetTop + offsetHeight
-          ) {
-            setActiveSection(section);
-            break;
-          }
-        }
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const scrollToSection = (sectionId: string) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
-    }
-    setMobileMenuOpen(false);
-  };
-
   const handleLogin = () => {
     setAuthDialogTab("login");
     setAuthDialogOpen(true);
@@ -362,6 +322,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const handleSignup = () => {
     setAuthDialogTab("signup");
     setAuthDialogOpen(true);
+  };
+
+  const handleGetStarted = () => {
+    if (!user) {
+      handleSignup();
+    } else {
+      handleSubscribe("free-trial");
+    }
   };
 
   const handleSubscribe = async (priceId: string, tierId: string) => {
@@ -374,7 +342,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
     setPaymentLoading(tierId);
     try {
-      await createCheckoutSession(priceId, user.id);
+      // Check if this is the trial tier
+      const tier = pricingTiers.find((t) => t.id === tierId);
+      if (tier?.isTrial) {
+        await createTrialSession(user.id);
+      } else {
+        await createCheckoutSession(priceId, user.id);
+      }
     } catch (error) {
       console.error("Payment error:", error);
       setAlertMessage("Payment failed. Please try again.");
@@ -384,17 +358,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }
   };
 
-  const navItems = [
-    { label: "How It Works", section: "how" },
-    { label: "Features", section: "features" },
-    { label: "Pricing", section: "pricing" },
-    { label: "FAQ", section: "faq" },
-  ];
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+      <Box
+        sx={{
+          minHeight: "100vh",
+          bgcolor: "background.default",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         {alertMessage && (
           <Slide direction="down" in={!!alertMessage}>
             <Alert
@@ -415,196 +389,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         )}
 
         {/* Navigation */}
-        <AppBar
-          position="sticky"
-          elevation={0}
-          sx={{
-            bgcolor: trigger
-              ? alpha(theme.palette.background.paper, 0.95)
-              : "transparent",
-            backdropFilter: "blur(20px)",
-            borderBottom: trigger
-              ? `1px solid ${alpha(theme.palette.divider, 0.1)}`
-              : "none",
-            transition: "all 0.3s ease",
+        <Navbar
+          mode={mode}
+          onToggleMode={() => setMode(mode === "light" ? "dark" : "light")}
+          onNavigate={onNavigate}
+          onGoBack={onGoBack}
+          canGoBack={canGoBack}
+          currentRoute={currentRoute}
+          onOpenAuth={(type) => {
+            setAuthDialogTab(type);
+            setAuthDialogOpen(true);
           }}
-        >
-          <Container maxWidth="xl">
-            <Toolbar sx={{ py: 1, px: { xs: 2, md: 0 } }}>
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  cursor: "pointer",
-                  animation: `${pulse} 2s ease-in-out infinite`,
-                }}
-                onClick={() => scrollToSection("home")}
-              >
-                <FolderOpen
-                  sx={{ fontSize: 32, mr: 1, color: "primary.main" }}
-                />
-                <Typography
-                  variant="h4"
-                  sx={{
-                    fontWeight: 800,
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                    backgroundClip: "text",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                  }}
-                >
-                  Neatly
-                </Typography>
-              </Box>
-
-              <Box sx={{ flexGrow: 1 }} />
-
-              {!isMobile ? (
-                <>
-                  {navItems.map((item) => (
-                    <Button
-                      key={item.section}
-                      onClick={() => scrollToSection(item.section)}
-                      sx={{
-                        mx: 1,
-                        color:
-                          activeSection === item.section
-                            ? "primary.main"
-                            : "text.primary",
-                        fontWeight: activeSection === item.section ? 600 : 400,
-                        fontSize: "1rem",
-                        position: "relative",
-                        "&::after": {
-                          content: '""',
-                          position: "absolute",
-                          bottom: 0,
-                          left: "50%",
-                          width: activeSection === item.section ? "100%" : "0%",
-                          height: 2,
-                          bgcolor: "primary.main",
-                          transition: "all 0.3s ease",
-                          transform: "translateX(-50%)",
-                        },
-                      }}
-                    >
-                      {item.label}
-                    </Button>
-                  ))}
-
-                  {loading ? (
-                    <CircularProgress size={24} sx={{ mx: 2 }} />
-                  ) : user ? (
-                    <Button
-                      variant="contained"
-                      onClick={onNavigateToDashboard}
-                      sx={{
-                        ml: 2,
-                        background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                        animation: `${slideInFromBottom} 0.6s ease-out`,
-                      }}
-                    >
-                      Dashboard
-                    </Button>
-                  ) : (
-                    <>
-                      <Button
-                        variant="text"
-                        sx={{ mx: 1 }}
-                        onClick={handleLogin}
-                      >
-                        Sign In
-                      </Button>
-                      <Button
-                        variant="contained"
-                        onClick={handleSignup}
-                        sx={{
-                          ml: 1,
-                          background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                          animation: `${slideInFromBottom} 0.6s ease-out`,
-                        }}
-                      >
-                        Get Started
-                      </Button>
-                    </>
-                  )}
-
-                  <IconButton
-                    onClick={() => setMode(mode === "light" ? "dark" : "light")}
-                    sx={{ ml: 2 }}
-                  >
-                    {mode === "light" ? <DarkMode /> : <LightMode />}
-                  </IconButton>
-                </>
-              ) : (
-                <IconButton onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                  {mobileMenuOpen ? <Close /> : <MenuIcon />}
-                </IconButton>
-              )}
-            </Toolbar>
-          </Container>
-        </AppBar>
-
-        {/* Mobile Menu */}
-        <Slide direction="down" in={mobileMenuOpen && isMobile}>
-          <Box
-            sx={{
-              position: "fixed",
-              top: 64,
-              left: 0,
-              right: 0,
-              bgcolor: "background.paper",
-              zIndex: 1200,
-              p: 3,
-              boxShadow: 4,
-              borderRadius: "0 0 16px 16px",
-            }}
-          >
-            <Stack spacing={2}>
-              {navItems.map((item) => (
-                <Button
-                  key={item.section}
-                  fullWidth
-                  onClick={() => scrollToSection(item.section)}
-                  variant={
-                    activeSection === item.section ? "contained" : "text"
-                  }
-                >
-                  {item.label}
-                </Button>
-              ))}
-              <Divider />
-
-              {loading ? (
-                <CircularProgress sx={{ alignSelf: "center" }} />
-              ) : user ? (
-                <Button
-                  fullWidth
-                  variant="contained"
-                  onClick={onNavigateToDashboard}
-                >
-                  Dashboard
-                </Button>
-              ) : (
-                <>
-                  <Button fullWidth variant="outlined" onClick={handleLogin}>
-                    Sign In
-                  </Button>
-                  <Button fullWidth variant="contained" onClick={handleSignup}>
-                    Get Started
-                  </Button>
-                </>
-              )}
-
-              <Box sx={{ display: "flex", justifyContent: "center" }}>
-                <IconButton
-                  onClick={() => setMode(mode === "light" ? "dark" : "light")}
-                >
-                  {mode === "light" ? <DarkMode /> : <LightMode />}
-                </IconButton>
-              </Box>
-            </Stack>
-          </Box>
-        </Slide>
+        />
 
         {/* Hero Section */}
         <Box
@@ -662,7 +458,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <Zoom in timeout={1000}>
                       <Chip
                         icon={<School />}
-                        label="Built by Penn State CS students"
+                        label="Built by developers, for everyone"
                         variant="outlined"
                         sx={{
                           mb: 3,
@@ -742,7 +538,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                             variant="contained"
                             size="large"
                             endIcon={<ArrowForward />}
-                            onClick={handleSignup}
+                            onClick={() => handleSubscribe("free-trial")}
                             sx={{
                               background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
                               px: { xs: 4, sm: 6 },
@@ -750,7 +546,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                               fontSize: { xs: "1rem", sm: "1.2rem" },
                             }}
                           >
-                            Try Free (2 Credits)
+                            Try Free Trial (14 Days)
                           </Button>
                         </Zoom>
                       )}
@@ -760,7 +556,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           variant="outlined"
                           size="large"
                           startIcon={<PlayArrow />}
-                          onClick={() => scrollToSection("how")}
+                          onClick={() => {
+                            const element = document.getElementById("how");
+                            element?.scrollIntoView({ behavior: "smooth" });
+                          }}
                           sx={{
                             borderWidth: 2,
                             px: { xs: 4, sm: 6 },
@@ -846,7 +645,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           </Avatar>
                           <Box>
                             <Typography variant="h6" fontWeight={700}>
-                              Scanning: ~/Documents/School
+                              Scanning: ~/Documents/Projects
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                               Found 2,847 files across 127 folders
@@ -1086,19 +885,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </Container>
         </Box>
 
-        {/* Social Proof */}
+        {/* Social Proof - Updated to fit horizontally */}
         <Box sx={{ py: { xs: 8, md: 12 } }}>
           <Container maxWidth="xl">
             <Box sx={{ textAlign: "center", mb: 8 }}>
               <Typography variant="h2" sx={{ mb: 3, fontWeight: 800 }}>
-                Students Love It
+                People Love It
               </Typography>
               <Typography variant="h5" color="text.secondary">
                 Real feedback from real users (not fake reviews)
               </Typography>
             </Box>
 
-            <Grid container spacing={4}>
+            <Grid container spacing={4} justifyContent="center">
               {testimonials.map((testimonial, index) => (
                 <Grid item xs={12} md={4} key={index}>
                   <Grow in timeout={1000 + index * 200}>
@@ -1160,7 +959,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </Container>
         </Box>
 
-        {/* Features Grid */}
+        {/* Features Grid - Updated to 2 rows of 3 */}
         <Box
           id="features"
           sx={{ py: { xs: 8, md: 16 }, bgcolor: "background.paper" }}
@@ -1168,7 +967,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <Container maxWidth="xl">
             <Box sx={{ textAlign: "center", mb: 8 }}>
               <Typography variant="h2" sx={{ mb: 3, fontWeight: 800 }}>
-                Why Students Choose Neatly
+                Why Choose Neatly
               </Typography>
               <Typography
                 variant="h5"
@@ -1179,9 +978,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </Typography>
             </Box>
 
-            <Grid container spacing={4}>
+            <Grid container spacing={4} justifyContent="center">
               {features.map((feature, index) => (
-                <Grid item xs={12} md={6} lg={4} key={index}>
+                <Grid item xs={12} sm={6} md={4} key={index}>
                   <Grow in timeout={800 + index * 100}>
                     <Card
                       sx={{
@@ -1479,9 +1278,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           fullWidth
                           variant={tier.popular ? "contained" : "outlined"}
                           size="large"
-                          onClick={() =>
-                            handleSubscribe(tier.stripePrice, tier.id)
-                          }
+                          onClick={() => handleSubscribe(tier.id)}
                           disabled={paymentLoading === tier.id}
                           sx={{
                             py: 2,
@@ -1494,6 +1291,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         >
                           {paymentLoading === tier.id ? (
                             <CircularProgress size={24} />
+                          ) : tier.isTrial ? (
+                            "Start Free Trial"
                           ) : (
                             `Get ${tier.title}`
                           )}
@@ -1630,8 +1429,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 animation: `${slideInFromBottom} 1s ease-out`,
               }}
             >
-              Join thousands of students who've finally gotten their digital
-              life together. Start with 2 free credits - no catch, no spam.
+              Join thousands who've finally gotten their digital life together.
+              Start with a 14-day free trial - just add your payment info, no
+              charge until trial ends.
             </Typography>
 
             <Zoom in timeout={1200}>
@@ -1659,7 +1459,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <Button
                   variant="contained"
                   size="large"
-                  onClick={handleSignup}
+                  onClick={() => handleSubscribe("free-trial")}
                   sx={{
                     bgcolor: "white",
                     color: "primary.main",
@@ -1673,7 +1473,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     },
                   }}
                 >
-                  Start Organizing (Free)
+                  Start Free Trial (14 Days)
                 </Button>
               )}
             </Zoom>
@@ -1681,176 +1481,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </Box>
 
         {/* Footer */}
-        <Box
-          sx={{
-            py: 6,
-            bgcolor: "background.paper",
-            borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-          }}
-        >
-          <Container maxWidth="xl">
-            <Grid container spacing={6}>
-              <Grid item xs={12} md={4}>
-                <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
-                  <FolderOpen
-                    sx={{ fontSize: 32, mr: 1, color: "primary.main" }}
-                  />
-                  <Typography variant="h4" fontWeight={800}>
-                    Neatly
-                  </Typography>
-                </Box>
-                <Typography
-                  variant="body1"
-                  color="text.secondary"
-                  sx={{ mb: 3, lineHeight: 1.7 }}
-                >
-                  The privacy-first AI file organizer built by students, for
-                  students. Finally, a tool that actually respects your data.
-                </Typography>
-                <Stack direction="row" spacing={2}>
-                  <IconButton
-                    component="a"
-                    href="https://github.com/neatly-app"
-                    target="_blank"
-                    sx={{
-                      bgcolor: alpha(theme.palette.primary.main, 0.1),
-                      transition: "all 0.3s ease",
-                      "&:hover": {
-                        bgcolor: alpha(theme.palette.primary.main, 0.2),
-                        transform: "scale(1.1)",
-                      },
-                    }}
-                  >
-                    <GitHub />
-                  </IconButton>
-                  <IconButton
-                    component="a"
-                    href="https://twitter.com/neatlyapp"
-                    target="_blank"
-                    sx={{
-                      bgcolor: alpha(theme.palette.primary.main, 0.1),
-                      transition: "all 0.3s ease",
-                      "&:hover": {
-                        bgcolor: alpha(theme.palette.primary.main, 0.2),
-                        transform: "scale(1.1)",
-                      },
-                    }}
-                  >
-                    <Twitter />
-                  </IconButton>
-                </Stack>
-              </Grid>
-
-              <Grid item xs={6} md={2}>
-                <Typography variant="h6" fontWeight={700} gutterBottom>
-                  Product
-                </Typography>
-                <Stack spacing={2}>
-                  {[
-                    {
-                      label: "Features",
-                      action: () => scrollToSection("features"),
-                    },
-                    {
-                      label: "How It Works",
-                      action: () => scrollToSection("how"),
-                    },
-                    {
-                      label: "Pricing",
-                      action: () => scrollToSection("pricing"),
-                    },
-                    {
-                      label: "Download",
-                      action: user ? onNavigateToDashboard : handleSignup,
-                    },
-                  ].map((item) => (
-                    <Typography
-                      key={item.label}
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{
-                        cursor: "pointer",
-                        transition: "all 0.2s ease",
-                        "&:hover": {
-                          color: "primary.main",
-                          transform: "translateX(4px)",
-                        },
-                      }}
-                      onClick={item.action}
-                    >
-                      {item.label}
-                    </Typography>
-                  ))}
-                </Stack>
-              </Grid>
-
-              <Grid item xs={6} md={2}>
-                <Typography variant="h6" fontWeight={700} gutterBottom>
-                  Company
-                </Typography>
-                <Stack spacing={2}>
-                  {["About", "Blog", "Privacy", "Terms"].map((item) => (
-                    <Typography
-                      key={item}
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{
-                        cursor: "pointer",
-                        transition: "all 0.2s ease",
-                        "&:hover": {
-                          color: "primary.main",
-                          transform: "translateX(4px)",
-                        },
-                      }}
-                    >
-                      {item}
-                    </Typography>
-                  ))}
-                </Stack>
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <Typography variant="h6" fontWeight={700} gutterBottom>
-                  Built at Penn State University
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ mb: 2, lineHeight: 1.7 }}
-                >
-                  Created by CS students who were tired of messy file systems
-                  and privacy-invasive "solutions." Local-first, open-source,
-                  and actually useful.
-                </Typography>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <School color="primary" />
-                  <Typography variant="body2" fontWeight={600}>
-                    Penn State University CS
-                  </Typography>
-                </Box>
-              </Grid>
-            </Grid>
-
-            <Divider sx={{ my: 4 }} />
-
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexDirection: { xs: "column", sm: "row" },
-                gap: 2,
-              }}
-            >
-              <Typography variant="body2" color="text.secondary">
-                © 2025 Neatly. Built with respect for your privacy.
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Made with ❤️ in NYC
-              </Typography>
-            </Box>
-          </Container>
-        </Box>
+        <Footer onNavigate={onNavigate} currentRoute={currentRoute} />
 
         {/* Auth Dialog */}
         <AuthDialog
