@@ -1,9 +1,8 @@
-// src/App.tsx - Fixed with working Supabase test
-import React, { useState, useEffect } from "react";
+// src/App.tsx - Production-grade navigation and authentication
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LandingPage } from "./components/LandingPage";
 import { Dashboard } from "./components/Dashboard";
-import { supabase } from "./lib/supabase";
 import {
   Box,
   CircularProgress,
@@ -11,247 +10,255 @@ import {
   ThemeProvider,
   createTheme,
   CssBaseline,
+  Fade,
+  Backdrop,
 } from "@mui/material";
 
 const theme = createTheme({
   palette: {
-    primary: {
-      main: "#1976d2",
-    },
-    secondary: {
-      main: "#dc004e",
-    },
+    primary: { main: "#1976d2" },
+    secondary: { main: "#dc004e" },
+  },
+  typography: {
+    fontFamily:
+      '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif',
   },
 });
 
-const LoadingScreen: React.FC = () => (
-  <ThemeProvider theme={theme}>
-    <CssBaseline />
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-        bgcolor: "background.default",
-      }}
-    >
-      <CircularProgress size={60} sx={{ mb: 2 }} />
-      <Typography variant="h6" color="text.secondary">
-        Loading your account...
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-        This should only take a moment
-      </Typography>
-    </Box>
-  </ThemeProvider>
+const LoadingScreen: React.FC<{ message?: string }> = ({
+  message = "Loading...",
+}) => (
+  <Backdrop open sx={{ zIndex: 9999, bgcolor: "background.default" }}>
+    <Fade in>
+      <Box sx={{ textAlign: "center" }}>
+        <CircularProgress size={60} sx={{ mb: 3 }} />
+        <Typography variant="h6" color="text.secondary">
+          {message}
+        </Typography>
+      </Box>
+    </Fade>
+  </Backdrop>
 );
 
-// Test function - moved outside component
-const testSupabaseConnection = async () => {
-  console.log("🧪 Testing Supabase connection...");
+// Router implementation - production-grade
+type Route = "landing" | "dashboard";
 
-  try {
-    // Test 1: Basic connection
-    console.log("🔗 Testing basic connection...");
-    const { data: testData, error: testError } = await supabase
-      .from("profiles")
-      .select("count")
-      .limit(1);
-
-    if (testError) {
-      console.error("❌ Basic connection failed:", testError);
-
-      if (testError.code === "42P01") {
-        console.error("🚨 PROFILES TABLE DOES NOT EXIST!");
-        console.log("👉 Go to Supabase SQL Editor and run:");
-        console.log(`
-CREATE TABLE public.profiles (
-  id uuid references auth.users on delete cascade not null primary key,
-  email text unique not null,
-  full_name text,
-  subscription_status text default 'free',
-  subscription_tier text,
-  stripe_customer_id text unique,
-  credits_remaining integer default 2,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow all access for authenticated users" ON public.profiles
-FOR ALL USING (auth.uid() = id);
-        `);
-      }
-      return;
-    }
-    console.log("✅ Basic connection works");
-
-    // Test 2: Check if table exists
-    console.log("📋 Checking if profiles table exists...");
-    const { data: tableData, error: tableError } = await supabase
-      .from("profiles")
-      .select("*")
-      .limit(1);
-
-    if (tableError) {
-      console.error("❌ Profiles table error:", tableError);
-      return;
-    }
-    console.log("✅ Profiles table exists");
-
-    // Test 3: Check current user
-    console.log("👤 Checking current user...");
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-
-    if (userError) {
-      console.error("❌ User auth error:", userError);
-      return;
-    }
-
-    if (!userData.user) {
-      console.log("🚫 No authenticated user");
-      return;
-    }
-
-    console.log("✅ User authenticated:", userData.user.id);
-
-    // Test 4: Try to fetch user's profile
-    console.log("📊 Testing profile fetch...");
-    const { data: profileData, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userData.user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      console.error("❌ Profile fetch error:", profileError);
-      return;
-    }
-
-    if (profileData) {
-      console.log("✅ Profile found:", profileData);
-    } else {
-      console.log("📝 No profile found, testing profile creation...");
-
-      // Test 5: Try to create profile
-      const newProfile = {
-        id: userData.user.id,
-        email: userData.user.email!,
-        full_name: userData.user.user_metadata?.full_name || null,
-        subscription_status: "free",
-        credits_remaining: 2,
-      };
-
-      const { data: createData, error: createError } = await supabase
-        .from("profiles")
-        .insert(newProfile)
-        .select()
-        .single();
-
-      if (createError) {
-        console.error("❌ Profile creation error:", createError);
-
-        if (createError.code === "42501") {
-          console.error("🚨 PERMISSION DENIED - RLS POLICY ISSUE!");
-          console.log("Go to Supabase and check your RLS policies!");
-        }
-        return;
-      }
-
-      console.log("✅ Profile created successfully:", createData);
-    }
-
-    console.log("🎉 All tests passed!");
-  } catch (error) {
-    console.error("❌ Unexpected error:", error);
-  }
-};
+interface RouterState {
+  current: Route;
+  history: Route[];
+  transitioning: boolean;
+}
 
 const AppContent: React.FC = () => {
-  const { user, profile, loading } = useAuth();
-  const [currentView, setCurrentView] = useState<"landing" | "dashboard">(
-    "landing"
-  );
-  const [debugMode] = useState(() => {
-    // Enable debug mode in development
-    return import.meta.env.DEV;
+  const { user, profile, loading: authLoading } = useAuth();
+  const [router, setRouter] = useState<RouterState>({
+    current: "landing",
+    history: ["landing"],
+    transitioning: false,
   });
 
-  // Test Supabase connection when component mounts
-  useEffect(() => {
-    console.log("🚀 AppContent mounted, running Supabase test...");
-    testSupabaseConnection();
-  }, []); // This should run now!
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const mountedRef = useRef(true);
+  const navigationLockRef = useRef(false);
 
-  // Debug logging
+  // Initialize route from URL
   useEffect(() => {
-    if (debugMode) {
-      console.log("🎯 AppContent state:", {
-        user: user ? "Present" : "None",
-        profile: profile ? "Present" : "None",
-        loading,
-        currentView,
+    const path = window.location.pathname;
+    const initialRoute: Route = path === "/dashboard" ? "dashboard" : "landing";
+
+    setRouter({
+      current: initialRoute,
+      history: [initialRoute],
+      transitioning: false,
+    });
+
+    // Replace state without triggering popstate
+    window.history.replaceState(
+      { route: initialRoute },
+      "",
+      `/${initialRoute === "landing" ? "" : initialRoute}`
+    );
+  }, []);
+
+  // Navigation handler with proper state management
+  const navigate = useCallback(
+    (route: Route, options: { replace?: boolean } = {}) => {
+      if (!mountedRef.current || navigationLockRef.current) return;
+
+      navigationLockRef.current = true;
+
+      setRouter((prev) => {
+        if (prev.current === route) {
+          navigationLockRef.current = false;
+          return prev;
+        }
+
+        const newHistory = options.replace
+          ? [...prev.history.slice(0, -1), route]
+          : [...prev.history, route];
+
+        // Update URL
+        const path = route === "landing" ? "/" : `/${route}`;
+        if (options.replace) {
+          window.history.replaceState({ route }, "", path);
+        } else {
+          window.history.pushState({ route }, "", path);
+        }
+
+        return {
+          current: route,
+          history: newHistory,
+          transitioning: true,
+        };
       });
-    }
-  }, [user, profile, loading, currentView, debugMode]);
 
-  // Add timeout for loading state to prevent infinite loading
+      // Complete transition
+      setTimeout(() => {
+        if (mountedRef.current) {
+          setRouter((prev) => ({ ...prev, transitioning: false }));
+          navigationLockRef.current = false;
+        }
+      }, 300);
+    },
+    []
+  );
+
+  const goBack = useCallback(() => {
+    if (router.history.length > 1) {
+      window.history.back();
+    } else {
+      navigate("landing");
+    }
+  }, [router.history, navigate]);
+
+  // Handle browser navigation
   useEffect(() => {
-    if (loading) {
-      const timeout = setTimeout(() => {
-        console.warn("⚠️ Auth loading timeout - this might indicate an issue");
-      }, 10000); // 10 second timeout warning
+    const handlePopState = (e: PopStateEvent) => {
+      const state = e.state as { route?: Route };
+      if (state?.route && mountedRef.current && !navigationLockRef.current) {
+        setRouter((prev) => ({
+          current: state.route!,
+          history: prev.history.slice(0, -1),
+          transitioning: true,
+        }));
 
-      return () => clearTimeout(timeout);
-    }
-  }, [loading]);
+        setTimeout(() => {
+          if (mountedRef.current) {
+            setRouter((prev) => ({ ...prev, transitioning: false }));
+          }
+        }, 300);
+      }
+    };
 
-  // Show loading screen while auth is initializing
-  if (loading) {
-    if (debugMode) {
-      console.log("⏳ Showing loading screen...");
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Auth state change handler - fixed to prevent infinite loops
+  useEffect(() => {
+    // Skip if still loading
+    if (authLoading) return;
+
+    if (!initialLoadComplete) {
+      setInitialLoadComplete(true);
+
+      // Only auto-navigate on initial load if user exists and we're on landing
+      if (user && router.current === "landing") {
+        const urlParams = new URLSearchParams(window.location.search);
+        // Don't auto-navigate if coming from a specific action (like signup)
+        if (!urlParams.get("action")) {
+          navigate("dashboard", { replace: true });
+        }
+      }
+    } else {
+      // Handle logout - navigate to landing if on dashboard without user
+      if (!user && router.current === "dashboard") {
+        navigate("landing", { replace: true });
+      }
     }
-    return <LoadingScreen />;
+  }, [user, authLoading, router.current, navigate, initialLoadComplete]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Show loading only during initial auth check
+  if (!initialLoadComplete) {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <LoadingScreen message="Authenticating..." />
+      </ThemeProvider>
+    );
   }
 
-  const handleNavigateToDashboard = () => {
-    console.log("🧭 Navigating to dashboard");
-    setCurrentView("dashboard");
+  // Route rendering with transitions
+  const renderRoute = () => {
+    switch (router.current) {
+      case "dashboard":
+        // Protect dashboard route
+        if (!user) {
+          return null;
+        }
+        return (
+          <Dashboard
+            onNavigateToLanding={() => navigate("landing")}
+            onGoBack={goBack}
+            canGoBack={router.history.length > 1}
+            currentView={router.current}
+          />
+        );
+
+      case "landing":
+      default:
+        return (
+          <LandingPage
+            onNavigateToDashboard={() => navigate("dashboard")}
+            currentView={router.current}
+          />
+        );
+    }
   };
 
-  const handleNavigateToLanding = () => {
-    console.log("🧭 Navigating to landing");
-    setCurrentView("landing");
-  };
-
-  // If user is logged in and on landing page, show landing with dashboard option
-  if (user && currentView === "landing") {
-    if (debugMode) {
-      console.log("🏠 Showing landing page for logged-in user");
-    }
-    return <LandingPage onNavigateToDashboard={handleNavigateToDashboard} />;
-  }
-
-  // If user is logged in and wants dashboard, show dashboard
-  if (user && currentView === "dashboard") {
-    if (debugMode) {
-      console.log("📊 Showing dashboard for logged-in user");
-    }
-    return <Dashboard />;
-  }
-
-  // If no user, always show landing page
-  if (debugMode) {
-    console.log("🏠 Showing landing page for anonymous user");
-  }
-  return <LandingPage onNavigateToDashboard={handleNavigateToDashboard} />;
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Box sx={{ minHeight: "100vh", position: "relative" }}>
+        <Fade in={!router.transitioning} timeout={300}>
+          <Box sx={{ minHeight: "100vh" }}>{renderRoute()}</Box>
+        </Fade>
+      </Box>
+    </ThemeProvider>
+  );
 };
 
 const App: React.FC = () => {
-  console.log("🚀 App starting...");
+  // Development helper - clear stale auth state
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      // Check for stale auth state
+      const checkAuthState = async () => {
+        const storedSession = localStorage.getItem("supabase.auth.token");
+        if (storedSession) {
+          try {
+            const parsed = JSON.parse(storedSession);
+            const expiresAt = parsed.expires_at;
+            if (expiresAt && new Date(expiresAt * 1000) < new Date()) {
+              console.log("🧹 Clearing expired auth state");
+              localStorage.removeItem("supabase.auth.token");
+              sessionStorage.clear();
+            }
+          } catch (e) {
+            console.error("Error checking auth state:", e);
+          }
+        }
+      };
+      checkAuthState();
+    }
+  }, []);
 
   return (
     <AuthProvider>

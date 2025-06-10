@@ -1,5 +1,12 @@
-// src/contexts/AuthContext.tsx - Final fix for profile fetch issue
-import React, { createContext, useContext, useEffect, useState } from "react";
+// src/contexts/AuthContext.tsx - Debug-enhanced and loading-stall patched
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import { type User, type Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { type Profile } from "../types/database";
@@ -19,9 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 };
 
@@ -33,198 +38,207 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
+  const mountedRef = useRef(true);
+  const initializingRef = useRef(false);
+  const profileFetchingRef = useRef(false);
 
-    const initializeAuth = async () => {
+  const fetchProfile = useCallback(
+    async (userId: string, retries = 3): Promise<void> => {
+      if (profileFetchingRef.current) {
+        console.log("📊 Profile fetch already in progress, skipping...");
+        return;
+      }
+
+      profileFetchingRef.current = true;
+      console.log("📊 Fetching profile for user:", userId);
+
       try {
-        console.log("🔍 Initializing auth...");
-
-        // Get initial session
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .maybeSingle();
 
         if (error) {
-          console.error("❌ Session error:", error);
-          if (isMounted) {
-            setLoading(false);
+          console.error("❌ Profile fetch error:", error);
+
+          if (retries > 0 && error.message.includes("network")) {
+            console.log(
+              `🔄 Retrying profile fetch... (${retries} retries left)`
+            );
+            await new Promise((res) => setTimeout(res, 1000));
+            profileFetchingRef.current = false;
+            return fetchProfile(userId, retries - 1);
+          }
+
+          return;
+        }
+
+        if (data) {
+          console.log("✅ Profile found");
+          if (mountedRef.current) setProfile(data);
+          return;
+        }
+
+        console.log("📝 No profile found. Creating new profile...");
+        const { data: userData, error: userError } =
+          await supabase.auth.getUser();
+
+        if (userError || !userData.user) {
+          console.error("❌ Error getting user data:", userError);
+          return;
+        }
+
+        const newProfile = {
+          id: userId,
+          email: userData.user.email!,
+          full_name: userData.user.user_metadata?.full_name || null,
+          subscription_status: "free",
+          subscription_tier: null,
+          stripe_customer_id: null,
+          credits_remaining: 2,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const { data: createdProfile, error: createError } = await supabase
+          .from("profiles")
+          .insert(newProfile)
+          .select()
+          .single();
+
+        if (createError) {
+          if (createError.code === "23505") {
+            console.log(
+              "🔄 Race condition detected. Fetching existing profile again..."
+            );
+            const { data: existingProfile } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", userId)
+              .single();
+
+            if (existingProfile && mountedRef.current) {
+              setProfile(existingProfile);
+            }
+          } else {
+            console.error("❌ Profile creation error:", createError);
           }
           return;
         }
 
-        console.log("📋 Initial session:", session ? "Found" : "None");
-
-        if (isMounted) {
-          setSession(session);
-          setUser(session?.user ?? null);
-
-          if (session?.user) {
-            console.log("👤 User found, fetching profile...");
-            await fetchProfile(session.user.id);
-          } else {
-            console.log("👤 No user, setting loading false");
-            setLoading(false);
-          }
+        if (createdProfile && mountedRef.current) {
+          console.log("✅ Profile created successfully");
+          setProfile(createdProfile);
         }
-      } catch (error) {
-        console.error("❌ Auth initialization error:", error);
-        if (isMounted) {
-          setLoading(false);
+      } catch (err) {
+        console.error("❌ Unexpected error in fetchProfile:", err);
+      } finally {
+        profileFetchingRef.current = false;
+        if (mountedRef.current) setLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (initializingRef.current) return;
+    initializingRef.current = true;
+
+    const initializeAuth = async () => {
+      console.log("🔍 Initializing auth...");
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+        console.log("[DEBUG] Supabase session on init:", session);
+
+        if (error) {
+          console.error("❌ Session fetch error:", error);
+          if (mountedRef.current) setLoading(false);
+          return;
         }
+
+        console.log("✅ Session loaded:", session);
+        setSession(session);
+        setLoading(false); // <-- make sure this is always called
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        }
+
+        if (mountedRef.current) setLoading(false);
+      } catch (err) {
+        console.error("❌ Auth init error:", err);
+        if (mountedRef.current) setLoading(false);
       }
     };
 
     initializeAuth();
 
-    // Listen for auth changes
+    // Force timeout fallback after 6s (DEV only)
+    if (import.meta.env.DEV) {
+      const timeout = setTimeout(() => {
+        if (loading) {
+          console.warn("⚠️ Forcing loading=false due to timeout (dev only)");
+          setLoading(false);
+        }
+      }, 6000);
+      return () => clearTimeout(timeout);
+    }
+  }, [fetchProfile]);
+
+  useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
-      console.log(
-        "🔄 Auth state changed:",
-        event,
-        session ? "Session exists" : "No session"
-      );
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("🔄 Auth state changed:", event, session);
 
-      if (!isMounted) return;
+      if (!mountedRef.current) return;
 
       setSession(session);
+      setLoading(false); // <-- make sure this is always called
       setUser(session?.user ?? null);
 
-      if (session?.user && event !== "SIGNED_OUT") {
-        console.log("👤 Auth change: User found, fetching profile...");
+      if (event === "SIGNED_IN" && session?.user) {
         await fetchProfile(session.user.id);
-      } else {
-        console.log("👤 Auth change: No user or signed out");
+      } else if (event === "SIGNED_OUT") {
         setProfile(null);
-        setLoading(false);
+        if (mountedRef.current) setLoading(false);
       }
+
+      if (mountedRef.current) setLoading(false);
     });
 
     return () => {
-      isMounted = false;
       subscription.unsubscribe();
+    };
+  }, [fetchProfile]);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
     };
   }, []);
 
-  const fetchProfile = async (userId: string) => {
-    console.log("📊 Starting profile fetch for user:", userId);
-
-    try {
-      // First, try to get existing profile
-      console.log("🔍 Checking for existing profile...");
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle(); // Use maybeSingle instead of single to avoid error on no results
-
-      if (error) {
-        console.error("❌ Error querying profiles:", error);
-        setLoading(false);
-        return;
-      }
-
-      if (data) {
-        console.log("✅ Existing profile found!");
-        setProfile(data);
-        setLoading(false);
-        return;
-      }
-
-      // No profile exists, create one
-      console.log("🔨 No profile found, creating new one...");
-
-      const { data: userData, error: userError } =
-        await supabase.auth.getUser();
-
-      if (userError || !userData.user) {
-        console.error("❌ Error getting user data:", userError);
-        setLoading(false);
-        return;
-      }
-
-      const newProfile = {
-        id: userId,
-        email: userData.user.email!,
-        full_name: userData.user.user_metadata?.full_name || null,
-        subscription_status: "free",
-        subscription_tier: null,
-        stripe_customer_id: null,
-        credits_remaining: 2, // Free credits
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      console.log("📝 Creating profile with data:", newProfile);
-
-      const { data: createdProfile, error: createError } = await supabase
-        .from("profiles")
-        .insert(newProfile)
-        .select()
-        .single();
-
-      if (createError) {
-        console.error("❌ Error creating profile:", createError);
-
-        // Check if it's a unique constraint violation (profile already exists)
-        if (createError.code === "23505") {
-          console.log("🔄 Profile already exists, retrying fetch...");
-          // Try to fetch again in case it was created by another tab/request
-          const { data: retryData } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", userId)
-            .single();
-
-          if (retryData) {
-            console.log("✅ Found profile on retry!");
-            setProfile(retryData);
-          }
-        }
-
-        setLoading(false);
-        return;
-      }
-
-      console.log("✅ Profile created successfully!");
-      setProfile(createdProfile);
-    } catch (error) {
-      console.error("❌ Unexpected error in fetchProfile:", error);
-    } finally {
-      setLoading(false);
-      console.log("🎯 Profile fetch complete, loading set to false");
-    }
-  };
-
   const signUp = async (email: string, password: string, fullName: string) => {
     console.log("📝 Signing up user...");
-
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-      },
+      options: { data: { full_name: fullName } },
     });
-
-    console.log("📝 Signup result:", error ? "Error" : "Success");
     return { data, error };
   };
 
   const signIn = async (email: string, password: string) => {
     console.log("🔐 Signing in user...");
-
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-
-    console.log("🔐 Signin result:", error ? "Error" : "Success");
     return { data, error };
   };
 
@@ -232,17 +246,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     console.log("🚪 Signing out user...");
     setLoading(true);
     await supabase.auth.signOut();
-    // Auth state change will handle cleanup
+    setUser(null);
+    setProfile(null);
+    setSession(null);
+    setLoading(false);
   };
 
   const updateProfile = async (updates: Partial<Profile>) => {
-    if (!user) {
-      console.log("❌ No user to update profile");
-      return;
-    }
-
+    if (!user) return;
     console.log("📝 Updating profile...");
-
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -251,33 +263,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         .select()
         .single();
 
-      if (!error && data) {
-        console.log("✅ Profile updated successfully");
+      if (!error && data && mountedRef.current) {
         setProfile(data);
-      } else {
-        console.error("❌ Error updating profile:", error);
       }
-    } catch (error) {
-      console.error("❌ Unexpected error updating profile:", error);
+    } catch (err) {
+      console.error("❌ Profile update error:", err);
     }
   };
 
-  const value = {
-    user,
-    profile,
-    session,
-    loading,
-    signUp,
-    signIn,
-    signOut,
-    updateProfile,
-  };
-
-  console.log("🎯 Auth state:", {
-    hasUser: !!user,
-    hasProfile: !!profile,
-    loading,
-  });
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        session,
+        loading,
+        signUp,
+        signIn,
+        signOut,
+        updateProfile,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };
