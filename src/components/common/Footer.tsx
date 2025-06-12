@@ -1,4 +1,4 @@
-// src/components/common/Footer.tsx - Simplified and guaranteed working version
+// src/components/common/Footer.tsx - Complete Fixed Version
 import React from "react";
 import {
   Box,
@@ -25,44 +25,69 @@ type Route =
 interface FooterProps {
   onNavigate: (route: Route) => void;
   currentRoute: Route;
+  onOpenAuth?: (type: "login" | "signup") => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onNavigate, currentRoute }) => {
+export const Footer: React.FC<FooterProps> = ({
+  onNavigate,
+  currentRoute,
+  onOpenAuth,
+}) => {
   const theme = useTheme();
-
-  // Get current theme mode from the theme object
   const isDarkMode = theme.palette.mode === "dark";
 
   // Debug log
-  console.log("Footer props:", { hasOnNavigate: !!onNavigate, currentRoute });
+  console.log("Footer rendered with:", {
+    hasOnNavigate: !!onNavigate,
+    currentRoute,
+    hasOnOpenAuth: !!onOpenAuth,
+  });
 
-  const handleClick = (route: Route) => {
-    console.log("Footer click:", route);
+  // Fixed navigation handlers
+  const handleNavigateClick = (route: Route) => {
+    console.log("Footer navigation click:", route);
     if (onNavigate) {
       onNavigate(route);
     } else {
-      console.error("onNavigate function not provided!");
+      console.error("onNavigate function not provided to Footer!");
     }
   };
 
   const scrollToSection = (sectionId: string) => {
+    console.log("Footer scroll to section:", sectionId);
     if (currentRoute !== "landing") {
+      // Navigate to landing first, then scroll
       onNavigate("landing");
       setTimeout(() => {
-        document
-          .getElementById(sectionId)
-          ?.scrollIntoView({ behavior: "smooth" });
-      }, 500);
+        const element = document.getElementById(sectionId);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
     } else {
-      document
-        .getElementById(sectionId)
-        ?.scrollIntoView({ behavior: "smooth" });
+      // Already on landing, just scroll
+      const element = document.getElementById(sectionId);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth" });
+      }
     }
   };
-  console.log("Footer rendered with:", {
-    onNavigate: !!onNavigate,
-    currentRoute,
-  });
+
+  const handleAuthAction = (action: "login" | "signup") => {
+    console.log("Footer auth action:", action);
+    if (onOpenAuth) {
+      // Use the auth dialog if available
+      onOpenAuth(action);
+    } else {
+      // Fallback: navigate to landing and scroll to top where auth buttons are
+      if (currentRoute !== "landing") {
+        onNavigate("landing");
+      }
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }, 100);
+    }
+  };
 
   return (
     <Box
@@ -91,7 +116,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, currentRoute }) => {
                     : "invert(47%) sepia(27%) saturate(1393%) hue-rotate(175deg) brightness(83%) contrast(89%)",
                 }}
               />
-              <Typography variant="h4" fontWeight={800}>
+              <Typography
+                variant="h4"
+                fontWeight={800}
+                sx={{
+                  cursor: "pointer",
+                  "&:hover": { color: "primary.main" },
+                }}
+                onClick={() => handleNavigateClick("landing")}
+              >
                 Neatly
               </Typography>
             </Box>
@@ -206,7 +239,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, currentRoute }) => {
             </Stack>
           </Grid>
 
-          {/* Pages Section */}
+          {/* Pages Section - FIXED */}
           <Grid item xs={6} md={2}>
             <Typography variant="h6" fontWeight={700} gutterBottom>
               Pages
@@ -223,7 +256,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, currentRoute }) => {
                     transform: "translateX(4px)",
                   },
                 }}
-                onClick={() => handleClick("contact-support")}
+                onClick={() => handleNavigateClick("contact-support")}
               >
                 Contact Support
               </Typography>
@@ -238,9 +271,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, currentRoute }) => {
                     transform: "translateX(4px)",
                   },
                 }}
-                onClick={() => scrollToSection("home")}
+                onClick={() => handleAuthAction("signup")}
               >
-                Create account
+                Create Account
               </Typography>
               <Typography
                 variant="body2"
@@ -253,14 +286,14 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, currentRoute }) => {
                     transform: "translateX(4px)",
                   },
                 }}
-                onClick={() => scrollToSection("home")}
+                onClick={() => handleAuthAction("login")}
               >
-                Login to account
+                Login to Account
               </Typography>
             </Stack>
           </Grid>
 
-          {/* Legal Section */}
+          {/* Legal Section - FIXED */}
           <Grid item xs={6} md={2}>
             <Typography variant="h6" fontWeight={700} gutterBottom>
               Legal
@@ -277,7 +310,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, currentRoute }) => {
                     transform: "translateX(4px)",
                   },
                 }}
-                onClick={() => handleClick("refund-policy")}
+                onClick={() => handleNavigateClick("refund-policy")}
               >
                 Refund Policy
               </Typography>
@@ -292,7 +325,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, currentRoute }) => {
                     transform: "translateX(4px)",
                   },
                 }}
-                onClick={() => handleClick("terms-of-service")}
+                onClick={() => handleNavigateClick("terms-of-service")}
               >
                 Terms of Service
               </Typography>
@@ -307,7 +340,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, currentRoute }) => {
                     transform: "translateX(4px)",
                   },
                 }}
-                onClick={() => handleClick("cancellation-policy")}
+                onClick={() => handleNavigateClick("cancellation-policy")}
               >
                 Cancellation Policy
               </Typography>

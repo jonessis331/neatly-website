@@ -1,4 +1,4 @@
-// src/App.tsx - Updated with better navigation and auto-download
+// src/App.tsx - Fixed Navigation Function
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LandingPage } from "./components/LandingPage";
@@ -73,7 +73,6 @@ const downloadApp = (os: "mac" | "windows") => {
     windows: "/downloads/neatly-windows.exe",
   };
 
-  // Create temporary link and trigger download
   const link = document.createElement("a");
   link.href = downloadLinks[os];
   link.download = `neatly-${os === "mac" ? "mac.dmg" : "windows.exe"}`;
@@ -93,7 +92,6 @@ const AppContent: React.FC = () => {
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [hasAutoDownloaded, setHasAutoDownloaded] = useState(false);
   const mountedRef = useRef(true);
-  const navigationLockRef = useRef(false);
 
   // Initialize route from URL
   useEffect(() => {
@@ -122,59 +120,68 @@ const AppContent: React.FC = () => {
     window.history.replaceState({ route: initialRoute }, "", path);
   }, []);
 
-  // Navigation handler with proper state management
+  // FIXED: Simplified navigation handler
   const navigate = useCallback(
     (route: Route, options: { replace?: boolean } = {}) => {
-      if (!mountedRef.current || navigationLockRef.current) return;
+      console.log("🧭 Navigation triggered:", {
+        route,
+        options,
+        currentRoute: router.current,
+      });
 
-      navigationLockRef.current = true;
+      if (!mountedRef.current) {
+        console.warn("⚠️ Navigation blocked: component unmounted");
+        return;
+      }
 
+      if (router.current === route) {
+        console.log("ℹ️ Already on target route, skipping navigation");
+        return;
+      }
+
+      // Update router state immediately
       setRouter((prev) => {
-        if (prev.current === route) {
-          navigationLockRef.current = false;
-          return prev;
-        }
-
         const newHistory = options.replace
           ? [...prev.history.slice(0, -1), route]
           : [...prev.history, route];
 
-        // Update URL - map routes to paths
-        const routePathMap: Record<Route, string> = {
-          landing: "/",
-          dashboard: "/dashboard",
-          "contact-support": "/contact-support",
-          "refund-policy": "/refund-policy",
-          "terms-of-service": "/terms-of-service",
-          "cancellation-policy": "/cancellation-policy",
-        };
-
-        const path = routePathMap[route];
-        if (options.replace) {
-          window.history.replaceState({ route }, "", path);
-        } else {
-          window.history.pushState({ route }, "", path);
-        }
+        console.log("🔄 Router state update:", {
+          from: prev.current,
+          to: route,
+          newHistory,
+        });
 
         return {
           current: route,
           history: newHistory,
-          transitioning: true,
+          transitioning: false, // Remove transitioning state complexity
         };
       });
 
-      // Complete transition
-      setTimeout(() => {
-        if (mountedRef.current) {
-          setRouter((prev) => ({ ...prev, transitioning: false }));
-          navigationLockRef.current = false;
-        }
-      }, 300);
+      // Update URL
+      const routePathMap: Record<Route, string> = {
+        landing: "/",
+        dashboard: "/dashboard",
+        "contact-support": "/contact-support",
+        "refund-policy": "/refund-policy",
+        "terms-of-service": "/terms-of-service",
+        "cancellation-policy": "/cancellation-policy",
+      };
+
+      const path = routePathMap[route];
+      console.log("🌐 Updating URL to:", path);
+
+      if (options.replace) {
+        window.history.replaceState({ route }, "", path);
+      } else {
+        window.history.pushState({ route }, "", path);
+      }
     },
-    []
+    [router.current]
   );
 
   const goBack = useCallback(() => {
+    console.log("⬅️ Going back, history length:", router.history.length);
     if (router.history.length > 1) {
       window.history.back();
     } else {
@@ -186,27 +193,20 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
       const state = e.state as { route?: Route };
-      if (state?.route && mountedRef.current && !navigationLockRef.current) {
+      console.log("🔙 Browser back/forward:", state);
+
+      if (state?.route && mountedRef.current) {
         setRouter((prev) => ({
           current: state.route!,
           history: prev.history.slice(0, -1),
-          transitioning: true,
+          transitioning: false,
         }));
-
-        setTimeout(() => {
-          if (mountedRef.current) {
-            setRouter((prev) => ({ ...prev, transitioning: false }));
-          }
-        }, 300);
       }
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
-
-  // Remove auto-download functionality - now handled after payment
-  // Auto-download removed - now triggered after trial signup with payment info
 
   // Auth state change handler - Auto-redirect to dashboard on sign-in
   useEffect(() => {
@@ -249,7 +249,7 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Route rendering with transitions
+  // Route rendering
   const renderRoute = () => {
     const commonProps = {
       onNavigate: navigate,
@@ -258,6 +258,8 @@ const AppContent: React.FC = () => {
       currentRoute: router.current,
     };
 
+    console.log("🎨 Rendering route:", router.current);
+
     switch (router.current) {
       case "dashboard":
         return user ? (
@@ -265,7 +267,10 @@ const AppContent: React.FC = () => {
             {...commonProps}
             onNavigateToLanding={() => navigate("landing")}
           />
-        ) : null;
+        ) : (
+          // Redirect to landing if no user
+          <>{navigate("landing", { replace: true })}</>
+        );
 
       case "contact-support":
         return <ContactSupport {...commonProps} />;
@@ -294,9 +299,7 @@ const AppContent: React.FC = () => {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ minHeight: "100vh", position: "relative" }}>
-        <Fade in={!router.transitioning} timeout={300}>
-          <Box sx={{ minHeight: "100vh" }}>{renderRoute()}</Box>
-        </Fade>
+        {renderRoute()}
       </Box>
     </ThemeProvider>
   );

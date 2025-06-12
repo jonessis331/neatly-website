@@ -1603,7 +1603,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </Box>
 
         {/* Footer */}
-        <Footer onNavigate={onNavigate} currentRoute={currentRoute} />
+        <Footer
+          onNavigate={onNavigate}
+          currentRoute={currentRoute}
+          onOpenAuth={(type) => {
+            setAuthDialogTab(type);
+            setAuthDialogOpen(true);
+          }}
+        />
 
         {/* Auth Dialog */}
         <AuthDialog
