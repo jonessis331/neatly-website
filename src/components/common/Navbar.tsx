@@ -1,5 +1,5 @@
-// src/components/common/Navbar.tsx - Reusable Navigation Component
-import React, { useState, useEffect } from "react";
+// src/components/common/Navbar.tsx - Performance Optimized Navigation Component
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   AppBar,
   Toolbar,
@@ -71,134 +71,160 @@ export const Navbar: React.FC<NavbarProps> = ({
     useState<null | HTMLElement>(null);
   const [activeSection, setActiveSection] = useState("home");
   const [isCompact, setIsCompact] = useState(false);
-  const [lastScrollY, setLastScrollY] = useState(0);
 
+  // Use scroll trigger for better performance
   const trigger = useScrollTrigger({
     disableHysteresis: true,
-    threshold: 0,
+    threshold: 50, // Only start checking after 50px
+    target: undefined,
   });
 
-  // Navigation items for landing page
-  const navItems = [
-    { label: "How It Works", section: "how" },
-    { label: "Features", section: "features" },
-    { label: "Pricing", section: "pricing" },
-    { label: "FAQ", section: "faq" },
-  ];
+  // Optimized scroll handler with throttling
+  const handleScroll = useCallback(() => {
+    const scrollY = window.scrollY;
+    const scrollThreshold = 80;
 
-  // Main navigation items (available on all pages)
-  const mainNavItems = [
-    { label: "Home", route: "landing" as Route },
-    { label: "Contact Support", route: "contact-support" as Route },
-  ];
+    // Simple, fast check for compact mode
+    const shouldBeCompact = scrollY > scrollThreshold;
 
-  // Handle scroll behavior for compact mode
+    if (shouldBeCompact !== isCompact) {
+      setIsCompact(shouldBeCompact);
+    }
+  }, [isCompact]);
+
+  // Throttled scroll handler for active section detection
+  const handleSectionScroll = useCallback(() => {
+    if (currentRoute !== "landing") return;
+
+    const sections = ["home", "how", "features", "pricing", "faq"];
+    const scrollPosition = window.scrollY + 100;
+
+    // Use a more efficient approach - break early when found
+    let newActiveSection = activeSection;
+
+    for (const section of sections) {
+      const element = document.getElementById(section);
+      if (element) {
+        const { offsetTop, offsetHeight } = element;
+        if (
+          scrollPosition >= offsetTop &&
+          scrollPosition < offsetTop + offsetHeight
+        ) {
+          newActiveSection = section;
+          break;
+        }
+      }
+    }
+
+    if (newActiveSection !== activeSection) {
+      setActiveSection(newActiveSection);
+    }
+  }, [currentRoute, activeSection]);
+
+  // Use RAF-based throttling for scroll events
   useEffect(() => {
+    let rafId: number | null = null;
     let ticking = false;
 
-    const handleScroll = () => {
+    const throttledScrollHandler = () => {
       if (!ticking) {
-        requestAnimationFrame(() => {
-          const currentScrollY = window.scrollY;
-          const scrollThreshold = 50;
-          const directionThreshold = 10; // Reverted back to original
-
-          if (currentScrollY > scrollThreshold) {
-            const scrollDirection = currentScrollY - lastScrollY;
-
-            if (scrollDirection > directionThreshold && !isCompact) {
-              // Scrolling down with momentum
-              setIsCompact(true);
-            } else if (scrollDirection < -directionThreshold && isCompact) {
-              // Scrolling up with momentum
-              setIsCompact(false);
-            }
-          } else {
-            // Near the top
-            setIsCompact(false);
-          }
-
-          setLastScrollY(currentScrollY);
+        rafId = requestAnimationFrame(() => {
+          handleScroll();
+          handleSectionScroll();
           ticking = false;
         });
         ticking = true;
       }
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY, isCompact]);
+    window.addEventListener("scroll", throttledScrollHandler, {
+      passive: true,
+    });
 
-  // Scroll to section (for landing page)
-  const scrollToSection = (sectionId: string) => {
-    if (currentRoute !== "landing") {
-      onNavigate("landing");
-      // Delay scrolling until navigation completes
-      setTimeout(() => {
-        const element = document.getElementById(sectionId);
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth" });
-        }
-      }, 500);
-    } else {
-      const element = document.getElementById(sectionId);
-      if (element) {
-        element.scrollIntoView({ behavior: "smooth" });
-      }
-    }
-    setMobileMenuOpen(false);
-  };
-
-  // Handle scroll for active section (only on landing page)
-  useEffect(() => {
-    if (currentRoute !== "landing") return;
-
-    const handleScroll = () => {
-      const sections = ["home", "how", "features", "pricing", "faq"];
-      const scrollPosition = window.scrollY + 100;
-
-      for (const section of sections) {
-        const element = document.getElementById(section);
-        if (element) {
-          const { offsetTop, offsetHeight } = element;
-          if (
-            scrollPosition >= offsetTop &&
-            scrollPosition < offsetTop + offsetHeight
-          ) {
-            setActiveSection(section);
-            break;
-          }
-        }
+    return () => {
+      window.removeEventListener("scroll", throttledScrollHandler);
+      if (rafId) {
+        cancelAnimationFrame(rafId);
       }
     };
+  }, [handleScroll, handleSectionScroll]);
 
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [currentRoute]);
+  // Memoize static data to prevent re-renders
+  const navItems = useMemo(
+    () => [
+      { label: "How It Works", section: "how" },
+      { label: "Features", section: "features" },
+      { label: "Pricing", section: "pricing" },
+      { label: "FAQ", section: "faq" },
+    ],
+    []
+  );
 
-  const handleAccountMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAccountMenuAnchor(event.currentTarget);
-  };
+  const mainNavItems = useMemo(
+    () => [
+      { label: "Home", route: "landing" as Route },
+      { label: "Contact Support", route: "contact-support" as Route },
+    ],
+    []
+  );
 
-  const handleAccountMenuClose = () => {
+  // Optimized scroll to section function
+  const scrollToSection = useCallback(
+    (sectionId: string) => {
+      if (currentRoute !== "landing") {
+        onNavigate("landing");
+        // Use a shorter delay and more reliable method
+        const timeoutId = setTimeout(() => {
+          const element = document.getElementById(sectionId);
+          if (element) {
+            element.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          }
+        }, 100);
+
+        return () => clearTimeout(timeoutId);
+      } else {
+        const element = document.getElementById(sectionId);
+        if (element) {
+          element.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        }
+      }
+      setMobileMenuOpen(false);
+    },
+    [currentRoute, onNavigate]
+  );
+
+  const handleAccountMenuOpen = useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      setAccountMenuAnchor(event.currentTarget);
+    },
+    []
+  );
+
+  const handleAccountMenuClose = useCallback(() => {
     setAccountMenuAnchor(null);
-  };
+  }, []);
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     await signOut();
     handleAccountMenuClose();
     onNavigate("landing");
-  };
+  }, [signOut, onNavigate]);
 
-  const handleBackClick = () => {
+  const handleBackClick = useCallback(() => {
     if (onGoBack) {
       onGoBack();
     } else {
       onNavigate("landing");
     }
-  };
+  }, [onGoBack, onNavigate]);
 
-  const getPageTitle = () => {
+  const getPageTitle = useCallback(() => {
     switch (currentRoute) {
       case "dashboard":
         return "Dashboard";
@@ -213,53 +239,97 @@ export const Navbar: React.FC<NavbarProps> = ({
       default:
         return "";
     }
-  };
+  }, [currentRoute]);
+
+  // Memoize expensive style calculations
+  const navbarStyles = useMemo(
+    () => ({
+      appBar: {
+        bgcolor: "transparent",
+        backdropFilter: "none",
+        borderBottom: "none",
+        transition: "all 0.6s cubic-bezier(0.4, 0, 0.2, 1)", // Slower transition
+        px: { xs: 2, md: 4 },
+        py: 1,
+      },
+      container: {
+        width: isCompact && !isMobile ? "80%" : "100%",
+        maxWidth: isCompact && !isMobile ? "900px" : "100%",
+        mx: "auto",
+        transition: "all 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)", // Longer duration
+        bgcolor: alpha(theme.palette.background.paper, 0.6),
+        borderRadius: 6,
+        backdropFilter: "blur(20px)", // Reduced blur for better performance
+        WebkitBackdropFilter: "blur(20px)",
+        border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+        boxShadow: `0 8px 32px ${alpha(
+          theme.palette.common.black,
+          0.12
+        )}, inset 0 1px 0 ${alpha(theme.palette.common.white, 0.1)}`,
+        overflow: "hidden",
+        // GPU acceleration
+        transform: "translateZ(0)",
+        willChange: isCompact ? "width, max-width" : "auto",
+      },
+      toolbar: {
+        py: 1.5,
+        px: isCompact ? 2 : 3,
+        minHeight: "56px !important",
+        height: "56px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        transition: "padding 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)", // Longer duration
+      },
+    }),
+    [isCompact, isMobile, theme]
+  );
+
+  // Memoize button styles to prevent recalculation
+  const buttonStyles = useMemo(
+    () => ({
+      navButton: {
+        fontSize: "0.95rem",
+        px: isCompact ? 1.5 : 2,
+        py: 1,
+        borderRadius: 2,
+        transition: "all 0.4s ease", // Slower transition
+        whiteSpace: "nowrap" as const,
+        minWidth: "auto",
+        "&:hover": {
+          bgcolor: alpha(theme.palette.primary.main, 0.08),
+        },
+        "&:focus, &:focus-visible": {
+          outline: "none",
+        },
+      },
+      authButton: {
+        fontSize: "0.95rem",
+        px: isCompact ? 2.5 : 3,
+        py: 1,
+        borderRadius: 3,
+        fontWeight: 600,
+        textTransform: "none" as const,
+        boxShadow: "none",
+        whiteSpace: "nowrap" as const,
+        minWidth: "auto",
+        transition: "all 0.4s ease", // Slower transition
+        "&:hover": {
+          boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+        },
+        "&:focus, &:focus-visible": {
+          outline: "none",
+        },
+      },
+    }),
+    [isCompact, theme]
+  );
 
   return (
     <>
-      <AppBar
-        position="sticky"
-        elevation={0}
-        sx={{
-          bgcolor: "transparent",
-          backdropFilter: "none",
-          borderBottom: "none",
-          transition: "all 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
-          px: { xs: 2, md: 4 },
-          py: 1,
-        }}
-      >
-        <Box
-          sx={{
-            width: isCompact && !isMobile ? "80%" : "100%",
-            maxWidth: isCompact && !isMobile ? "900px" : "100%",
-            mx: "auto",
-            transition: "all 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)", // Longer duration, ensure all properties animate
-            bgcolor: alpha(theme.palette.background.paper, 0.6), // More transparent
-            borderRadius: 6,
-            backdropFilter: "blur(25px)", // Stronger blur
-            WebkitBackdropFilter: "blur(25px)", // Safari support
-            border: `1px solid ${alpha(theme.palette.divider, 0.2)}`, // More visible border
-            boxShadow: `0 8px 32px ${alpha(
-              theme.palette.common.black,
-              0.12
-            )}, inset 0 1px 0 ${alpha(theme.palette.common.white, 0.1)}`, // Added inset highlight
-            overflow: "hidden", // Prevent content from breaking out during animation
-            willChange: "width, max-width", // Optimize for width animations
-          }}
-        >
-          <Toolbar
-            sx={{
-              py: 1.5,
-              px: isCompact ? 2 : 3, // Reduce container padding when compact
-              minHeight: "56px !important", // Fixed height to prevent growing
-              height: "56px", // Explicit height
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              transition: "padding 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
-            }}
-          >
+      <AppBar position="sticky" elevation={0} sx={navbarStyles.appBar}>
+        <Box sx={navbarStyles.container}>
+          <Toolbar sx={navbarStyles.toolbar}>
             {/* Left Section: Back button and brand */}
             <Box sx={{ display: "flex", alignItems: "center", minWidth: 0 }}>
               {(showBackButton || canGoBack) && (
@@ -267,15 +337,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={handleBackClick}
                   sx={{
                     mr: 1,
-                    transition: "all 0.3s ease",
+                    transition: "all 0.4s ease", // Slower transition
                     "&:hover": {
                       transform: "translateX(-2px)",
                       bgcolor: alpha(theme.palette.primary.main, 0.1),
                     },
-                    "&:focus": {
-                      outline: "none",
-                    },
-                    "&:focus-visible": {
+                    "&:focus, &:focus-visible": {
                       outline: "none",
                     },
                   }}
@@ -289,22 +356,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   display: "flex",
                   alignItems: "center",
                   cursor: "pointer",
-                  transition: "all 0.3s ease",
+                  transition: "all 0.4s ease", // Slower transition
                   "&:hover": {
                     transform: "translateY(-1px)",
                   },
-                  minWidth: 0, // Allow shrinking
+                  minWidth: 0,
                 }}
                 onClick={() => onNavigate("landing")}
               >
-                {/* <FolderOpen
-                  sx={{
-                    fontSize: 28,
-                    mr: 1,
-                    color: "primary.main",
-                    flexShrink: 0,
-                  }}
-                /> */}
                 <Box
                   component="img"
                   src={neatlyLogo}
@@ -316,16 +375,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                       mode === "dark"
                         ? "invert(88%) sepia(11%) saturate(4944%) hue-rotate(176deg) brightness(99%) contrast(97%)"
                         : "invert(47%) sepia(27%) saturate(1393%) hue-rotate(175deg) brightness(83%) contrast(89%)",
+                    // GPU acceleration
+                    transform: "translateZ(0)",
                   }}
                 />
 
-                {/* Brand name with smooth collapse */}
+                {/* Brand name with optimized collapse animation */}
                 <Box
                   sx={{
                     overflow: "hidden",
-                    transition: "all 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
+                    transition: "all 0.6s cubic-bezier(0.4, 0, 0.2, 1)", // Slower transition
                     width: isCompact && !isMobile ? "0px" : "auto",
                     opacity: isCompact && !isMobile ? 0 : 1,
+                    // GPU acceleration
+                    transform: "translateZ(0)",
                   }}
                 >
                   <Typography
@@ -336,7 +399,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       backgroundClip: "text",
                       WebkitBackgroundClip: "text",
                       WebkitTextFillColor: "transparent",
-                      whiteSpace: "nowrap", // Prevent text wrapping
+                      whiteSpace: "nowrap",
                     }}
                   >
                     Neatly
@@ -360,7 +423,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     display: "flex",
                     alignItems: "center",
                     gap: isCompact ? 0.5 : 1,
-                    transition: "all 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                    transition: "all 0.6s cubic-bezier(0.25, 0.8, 0.25, 1)", // Slower transition
                   }}
                 >
                   {/* Landing page navigation */}
@@ -371,29 +434,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                           key={item.section}
                           onClick={() => scrollToSection(item.section)}
                           sx={{
+                            ...buttonStyles.navButton,
                             color:
                               activeSection === item.section
                                 ? "primary.main"
                                 : "text.primary",
                             fontWeight:
                               activeSection === item.section ? 600 : 400,
-                            fontSize: "0.95rem", // Keep font size consistent
-                            px: isCompact ? 1.5 : 2, // Only reduce padding slightly
-                            py: 1,
-                            borderRadius: 2,
-                            transition:
-                              "all 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
-                            whiteSpace: "nowrap",
-                            minWidth: "auto",
-                            "&:hover": {
-                              bgcolor: alpha(theme.palette.primary.main, 0.08),
-                            },
-                            "&:focus": {
-                              outline: "none",
-                            },
-                            "&:focus-visible": {
-                              outline: "none",
-                            },
                           }}
                         >
                           {item.label}
@@ -410,28 +457,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                           key={item.route}
                           onClick={() => onNavigate(item.route)}
                           sx={{
+                            ...buttonStyles.navButton,
                             color:
                               currentRoute === item.route
                                 ? "primary.main"
                                 : "text.primary",
                             fontWeight: currentRoute === item.route ? 600 : 400,
-                            fontSize: "0.95rem", // Keep font size consistent
-                            px: isCompact ? 1.5 : 2, // Only reduce padding slightly
-                            py: 1,
-                            borderRadius: 2,
-                            transition:
-                              "all 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
-                            whiteSpace: "nowrap",
-                            minWidth: "auto",
-                            "&:hover": {
-                              bgcolor: alpha(theme.palette.primary.main, 0.08),
-                            },
-                            "&:focus": {
-                              outline: "none",
-                            },
-                            "&:focus-visible": {
-                              outline: "none",
-                            },
                           }}
                         >
                           {item.label}
@@ -455,10 +486,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <IconButton
                       onClick={handleAccountMenuOpen}
                       sx={{
-                        "&:focus": {
-                          outline: "none",
-                        },
-                        "&:focus-visible": {
+                        "&:focus, &:focus-visible": {
                           outline: "none",
                         },
                       }}
@@ -467,62 +495,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </IconButton>
                   ) : (
                     <>
-                      {/* Login button - always visible, just tighter spacing */}
                       <Button
                         onClick={() => onOpenAuth?.("login")}
                         sx={{
+                          ...buttonStyles.navButton,
                           color: "text.primary",
-                          fontSize: "0.95rem", // Keep font size consistent
-                          px: isCompact ? 1.5 : 2, // Only reduce padding slightly
-                          py: 1,
-                          borderRadius: 2,
-                          transition:
-                            "all 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
-                          whiteSpace: "nowrap",
-                          minWidth: "auto",
-                          "&:hover": {
-                            bgcolor: alpha(theme.palette.primary.main, 0.08),
-                          },
-                          "&:focus": {
-                            outline: "none",
-                          },
-                          "&:focus-visible": {
-                            outline: "none",
-                          },
                         }}
                       >
                         Login
                       </Button>
 
-                      {/* Sign up button - always visible */}
                       <Button
                         onClick={() => onOpenAuth?.("signup")}
                         variant="contained"
-                        sx={{
-                          fontSize: "0.95rem", // Keep font size consistent
-                          px: isCompact ? 2.5 : 3, // Only reduce padding slightly
-                          py: 1,
-                          borderRadius: 3,
-                          fontWeight: 600,
-                          textTransform: "none",
-                          boxShadow: "none",
-                          whiteSpace: "nowrap",
-                          minWidth: "auto",
-                          transition:
-                            "all 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
-                          "&:hover": {
-                            boxShadow: `0 4px 12px ${alpha(
-                              theme.palette.primary.main,
-                              0.3
-                            )}`,
-                          },
-                          "&:focus": {
-                            outline: "none",
-                          },
-                          "&:focus-visible": {
-                            outline: "none",
-                          },
-                        }}
+                        sx={buttonStyles.authButton}
                       >
                         Sign up
                       </Button>
@@ -533,11 +519,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onClick={onToggleMode}
                     sx={{
                       ml: isCompact ? 0.5 : 1,
-                      transition: "all 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
-                      "&:focus": {
-                        outline: "none",
-                      },
-                      "&:focus-visible": {
+                      transition: "all 0.4s ease", // Slower transition
+                      "&:focus, &:focus-visible": {
                         outline: "none",
                       },
                     }}
@@ -550,10 +533,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <IconButton
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 sx={{
-                  "&:focus": {
-                    outline: "none",
-                  },
-                  "&:focus-visible": {
+                  "&:focus, &:focus-visible": {
                     outline: "none",
                   },
                 }}
@@ -580,6 +560,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             borderRadius: 4,
             border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
             boxShadow: `0 12px 40px ${alpha(theme.palette.common.black, 0.15)}`,
+            // GPU acceleration
+            transform: "translateZ(0)",
           }}
         >
           <Stack spacing={2}>
@@ -594,10 +576,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       activeSection === item.section ? "contained" : "text"
                     }
                     sx={{
-                      "&:focus": {
-                        outline: "none",
-                      },
-                      "&:focus-visible": {
+                      "&:focus, &:focus-visible": {
                         outline: "none",
                       },
                     }}
@@ -605,8 +584,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {item.label}
                   </Button>
                 ))
-              : // Other pages mobile nav
-                mainNavItems.map((item) => (
+              : mainNavItems.map((item) => (
                   <Button
                     key={item.route}
                     fullWidth
@@ -616,10 +594,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }}
                     variant={currentRoute === item.route ? "contained" : "text"}
                     sx={{
-                      "&:focus": {
-                        outline: "none",
-                      },
-                      "&:focus-visible": {
+                      "&:focus, &:focus-visible": {
                         outline: "none",
                       },
                     }}
@@ -641,10 +616,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setMobileMenuOpen(false);
                 }}
                 sx={{
-                  "&:focus": {
-                    outline: "none",
-                  },
-                  "&:focus-visible": {
+                  "&:focus, &:focus-visible": {
                     outline: "none",
                   },
                 }}
@@ -661,10 +633,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setMobileMenuOpen(false);
                   }}
                   sx={{
-                    "&:focus": {
-                      outline: "none",
-                    },
-                    "&:focus-visible": {
+                    "&:focus, &:focus-visible": {
                       outline: "none",
                     },
                   }}
@@ -679,10 +648,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setMobileMenuOpen(false);
                   }}
                   sx={{
-                    "&:focus": {
-                      outline: "none",
-                    },
-                    "&:focus-visible": {
+                    "&:focus, &:focus-visible": {
                       outline: "none",
                     },
                   }}
@@ -696,10 +662,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <IconButton
                 onClick={onToggleMode}
                 sx={{
-                  "&:focus": {
-                    outline: "none",
-                  },
-                  "&:focus-visible": {
+                  "&:focus, &:focus-visible": {
                     outline: "none",
                   },
                 }}
@@ -724,6 +687,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
             boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.12)}`,
             mt: 1,
+            // GPU acceleration
+            transform: "translateZ(0)",
           },
         }}
         transformOrigin={{ horizontal: "right", vertical: "top" }}

@@ -1,4 +1,4 @@
-// src/components/LandingPage.tsx - Refined with clean animations and fixed width
+// src/components/LandingPage.tsx - Updated with Download Buttons
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
@@ -46,6 +46,9 @@ import {
   Computer,
   CloudDone,
   Security,
+  Download,
+  Apple,
+  Window,
 } from "@mui/icons-material";
 import { useAuth } from "../contexts/AuthContext";
 import { AuthDialog } from "./Auth";
@@ -336,12 +339,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setAuthDialogOpen(true);
   };
 
-  const handleGetStarted = () => {
-    if (!user) {
-      handleSignup();
-    } else {
-      handleSubscribe("free-trial", "free-trial");
-    }
+  const handleDownloadMac = () => {
+    // Handle Mac download - replace with actual download logic
+    window.open("/downloads/neatly-mac.dmg", "_blank");
+  };
+
+  const handleDownloadWindows = () => {
+    // Handle Windows download - replace with actual download logic
+    window.open("/downloads/neatly-windows.exe", "_blank");
   };
 
   const handleSubscribe = async (priceId: string, tierId?: string) => {
@@ -525,68 +530,35 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.3s both`,
                     }}
                   >
-                    {user ? (
-                      <Button
-                        variant="contained"
-                        size="large"
-                        endIcon={<ArrowForward />}
-                        onClick={onNavigateToDashboard}
-                        sx={{
-                          background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                          px: { xs: 4, sm: 6 },
-                          py: 2,
-                          fontSize: { xs: "1rem", sm: "1.2rem" },
-                          borderRadius: 4,
-                          transition:
-                            "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
-                          "&:hover": {
-                            transform: "translateY(-3px)",
-                            boxShadow: `0 12px 30px ${alpha(
-                              theme.palette.primary.main,
-                              0.3
-                            )}`,
-                          },
-                        }}
-                      >
-                        Go to Dashboard
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="contained"
-                        size="large"
-                        endIcon={<ArrowForward />}
-                        onClick={() =>
-                          handleSubscribe("free-trial", "free-trial")
-                        }
-                        sx={{
-                          background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                          px: { xs: 4, sm: 6 },
-                          py: 2,
-                          fontSize: { xs: "1rem", sm: "1.2rem" },
-                          borderRadius: 4,
-                          transition:
-                            "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
-                          "&:hover": {
-                            transform: "translateY(-3px)",
-                            boxShadow: `0 12px 30px ${alpha(
-                              theme.palette.primary.main,
-                              0.3
-                            )}`,
-                          },
-                        }}
-                      >
-                        Try Free Trial (14 Days)
-                      </Button>
-                    )}
+                    <Button
+                      variant="contained"
+                      size="large"
+                      startIcon={<Apple />}
+                      onClick={handleDownloadMac}
+                      sx={{
+                        background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                        px: { xs: 4, sm: 6 },
+                        py: 2,
+                        fontSize: { xs: "1rem", sm: "1.2rem" },
+                        borderRadius: 4,
+                        transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                        "&:hover": {
+                          transform: "translateY(-3px)",
+                          boxShadow: `0 12px 30px ${alpha(
+                            theme.palette.primary.main,
+                            0.3
+                          )}`,
+                        },
+                      }}
+                    >
+                      Download for Mac
+                    </Button>
 
                     <Button
                       variant="outlined"
                       size="large"
-                      startIcon={<PlayArrow />}
-                      onClick={() => {
-                        const element = document.getElementById("how");
-                        element?.scrollIntoView({ behavior: "smooth" });
-                      }}
+                      startIcon={<Window />}
+                      onClick={handleDownloadWindows}
                       sx={{
                         borderWidth: 2,
                         px: { xs: 4, sm: 6 },
@@ -603,7 +575,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         },
                       }}
                     >
-                      See How It Works
+                      Download for Windows
                     </Button>
                   </Stack>
 
@@ -817,7 +789,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 }}
               >
                 Three simple steps. No cloud uploads, no data mining, no BS.
-                Just smart organization that respects your privacy.
+                Just smart and quick organization that respects your privacy.
               </Typography>
             </Box>
 
@@ -1565,63 +1537,68 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               }}
             >
               Join thousands who've finally gotten their digital life together.
-              Start with a 14-day free trial - just add your payment info, no
-              charge until trial ends.
+              Download now and start organizing your files instantly.
             </Typography>
 
-            <Box
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={3}
+              justifyContent="center"
               sx={{
                 animation: `${scaleIn} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.3s both`,
               }}
             >
-              {user ? (
-                <Button
-                  variant="contained"
-                  size="large"
-                  onClick={onNavigateToDashboard}
-                  sx={{
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<Apple />}
+                onClick={handleDownloadMac}
+                sx={{
+                  bgcolor: "white",
+                  color: "primary.main",
+                  px: { xs: 4, sm: 6 },
+                  py: 2,
+                  fontSize: { xs: "1rem", sm: "1.2rem" },
+                  fontWeight: 700,
+                  borderRadius: 4,
+                  transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                  "&:hover": {
+                    bgcolor: "grey.100",
+                    transform: "translateY(-3px)",
+                    boxShadow: "0 12px 30px rgba(0,0,0,0.2)",
+                  },
+                }}
+              >
+                Download for Mac
+              </Button>
+
+              <Button
+                variant="outlined"
+                size="large"
+                startIcon={<Window />}
+                onClick={handleDownloadWindows}
+                sx={{
+                  borderColor: "white",
+                  color: "white",
+                  px: { xs: 4, sm: 6 },
+                  py: 2,
+                  fontSize: { xs: "1rem", sm: "1.2rem" },
+                  fontWeight: 700,
+                  borderRadius: 4,
+                  borderWidth: 2,
+                  transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                  "&:hover": {
                     bgcolor: "white",
                     color: "primary.main",
-                    px: { xs: 4, sm: 6 },
-                    py: 2,
-                    fontSize: { xs: "1rem", sm: "1.2rem" },
-                    fontWeight: 700,
-                    borderRadius: 4,
-                    transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
-                    "&:hover": {
-                      bgcolor: "grey.100",
-                      transform: "translateY(-3px)",
-                      boxShadow: "0 12px 30px rgba(0,0,0,0.2)",
-                    },
-                  }}
-                >
-                  Go to Dashboard
-                </Button>
-              ) : (
-                <Button
-                  variant="contained"
-                  size="large"
-                  onClick={() => handleSubscribe("free-trial", "free-trial")}
-                  sx={{
-                    bgcolor: "white",
-                    color: "primary.main",
-                    px: { xs: 4, sm: 6 },
-                    py: 2,
-                    fontSize: { xs: "1rem", sm: "1.2rem" },
-                    fontWeight: 700,
-                    borderRadius: 4,
-                    transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
-                    "&:hover": {
-                      bgcolor: "grey.100",
-                      transform: "translateY(-3px)",
-                      boxShadow: "0 12px 30px rgba(0,0,0,0.2)",
-                    },
-                  }}
-                >
-                  Start Free Trial (14 Days)
-                </Button>
-              )}
-            </Box>
+                    borderColor: "white",
+                    transform: "translateY(-3px)",
+                    boxShadow: "0 12px 30px rgba(0,0,0,0.2)",
+                  },
+                }}
+              >
+                Download for Windows
+              </Button>
+            </Stack>
           </Box>
         </Box>
 
