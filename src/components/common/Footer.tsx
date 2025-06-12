@@ -12,6 +12,7 @@ import {
   useTheme,
 } from "@mui/material";
 import { FolderOpen, GitHub, Twitter, School } from "@mui/icons-material";
+import neatlyLogo from "../../assets/neatly_icon.png";
 
 type Route =
   | "landing"
@@ -28,6 +29,9 @@ interface FooterProps {
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate, currentRoute }) => {
   const theme = useTheme();
+
+  // Get current theme mode from the theme object
+  const isDarkMode = theme.palette.mode === "dark";
 
   // Debug log
   console.log("Footer props:", { hasOnNavigate: !!onNavigate, currentRoute });
@@ -74,7 +78,19 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, currentRoute }) => {
           {/* Brand Section */}
           <Grid item xs={12} md={4}>
             <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
-              <FolderOpen sx={{ fontSize: 32, mr: 1, color: "primary.main" }} />
+              <Box
+                component="img"
+                src={neatlyLogo}
+                alt="Neatly Logo"
+                sx={{
+                  height: 40,
+                  width: "auto",
+                  mr: 1,
+                  filter: isDarkMode
+                    ? "invert(88%) sepia(11%) saturate(4944%) hue-rotate(176deg) brightness(99%) contrast(97%)"
+                    : "invert(47%) sepia(27%) saturate(1393%) hue-rotate(175deg) brightness(83%) contrast(89%)",
+                }}
+              />
               <Typography variant="h4" fontWeight={800}>
                 Neatly
               </Typography>

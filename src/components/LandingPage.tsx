@@ -1,4 +1,4 @@
-// src/components/LandingPage.tsx - Updated with new layout and navbar integration
+// src/components/LandingPage.tsx - Refined with clean animations and fixed width
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
@@ -27,6 +27,7 @@ import {
   Avatar,
   keyframes,
   ThemeProvider,
+  CircularProgress,
 } from "@mui/material";
 import {
   AutoAwesome,
@@ -72,21 +73,32 @@ interface LandingPageProps {
   currentRoute: Route;
 }
 
-// Animation keyframes
-const float = keyframes`
+// Clean Apple-style animations
+const gentleFloat = keyframes`
   0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-20px); }
+  50% { transform: translateY(-8px); }
 `;
 
-const pulse = keyframes`
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.05); opacity: 0.8; }
-  100% { transform: scale(1); opacity: 1; }
+const fadeInUp = keyframes`
+  from { 
+    transform: translateY(20px); 
+    opacity: 0; 
+  }
+  to { 
+    transform: translateY(0); 
+    opacity: 1; 
+  }
 `;
 
-const slideInFromBottom = keyframes`
-  from { transform: translateY(30px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+const scaleIn = keyframes`
+  from { 
+    transform: scale(0.95); 
+    opacity: 0; 
+  }
+  to { 
+    transform: scale(1); 
+    opacity: 1; 
+  }
 `;
 
 const getDesignTokens = (mode: "light" | "dark") => ({
@@ -142,7 +154,7 @@ const getDesignTokens = (mode: "light" | "dark") => ({
           fontWeight: 600,
           textTransform: "none",
           boxShadow: "none",
-          transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
           "&:hover": {
             boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
             transform: "translateY(-2px)",
@@ -196,7 +208,7 @@ const features = [
       "Preserves project folders, respects .gitignore, skips node_modules automatically",
     highlight: "Built by Devs",
   },
-].slice(0, 6); // Limit to 6 features (2 rows of 3)
+];
 
 const steps = [
   {
@@ -328,11 +340,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     if (!user) {
       handleSignup();
     } else {
-      handleSubscribe("free-trial");
+      handleSubscribe("free-trial", "free-trial");
     }
   };
 
-  const handleSubscribe = async (priceId: string, tierId: string) => {
+  const handleSubscribe = async (priceId: string, tierId?: string) => {
     if (!user) {
       setAlertMessage("Create an account first - it's free!");
       setAlertSeverity("error");
@@ -340,10 +352,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       return;
     }
 
-    setPaymentLoading(tierId);
+    const tierIdToUse = tierId || priceId;
+    setPaymentLoading(tierIdToUse);
     try {
-      // Check if this is the trial tier
-      const tier = pricingTiers.find((t) => t.id === tierId);
+      const tier = pricingTiers.find((t) => t.id === tierIdToUse);
       if (tier?.isTrial) {
         await createTrialSession(user.id);
       } else {
@@ -379,7 +391,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 left: "50%",
                 transform: "translateX(-50%)",
                 zIndex: 9999,
-                boxShadow: 4,
+                borderRadius: 3,
+                boxShadow: `0 8px 32px ${alpha(
+                  theme.palette.common.black,
+                  0.12
+                )}`,
               }}
               onClose={() => setAlertMessage("")}
             >
@@ -410,9 +426,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             pb: { xs: 8, md: 16 },
             position: "relative",
             overflow: "hidden",
+            maxWidth: "100%",
           }}
         >
-          {/* Animated Background */}
+          {/* Subtle gradient background */}
           <Box
             sx={{
               position: "absolute",
@@ -422,884 +439,967 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               bottom: 0,
               background: `radial-gradient(ellipse at top, ${alpha(
                 theme.palette.primary.main,
-                0.1
-              )} 0%, transparent 70%)`,
+                0.05
+              )} 0%, transparent 60%)`,
               zIndex: -1,
             }}
           />
 
-          {/* Floating particles */}
-          {[...Array(5)].map((_, i) => (
-            <Box
-              key={i}
-              sx={{
-                position: "absolute",
-                width: { xs: 40, md: 80 },
-                height: { xs: 40, md: 80 },
-                borderRadius: "50%",
-                background: `linear-gradient(135deg, ${alpha(
-                  theme.palette.primary.main,
-                  0.1
-                )}, ${alpha(theme.palette.secondary.main, 0.1)})`,
-                top: `${20 + i * 15}%`,
-                left: `${10 + i * 20}%`,
-                animation: `${float} ${3 + i}s ease-in-out infinite`,
-                animationDelay: `${i * 0.5}s`,
-              }}
-            />
-          ))}
-
-          <Container maxWidth="xl">
-            <Grid container spacing={6} alignItems="center">
+          <Box
+            sx={{
+              px: { xs: 3, md: 6, lg: 8 },
+              maxWidth: "100%",
+            }}
+          >
+            <Grid container spacing={8} alignItems="center">
               <Grid item xs={12} lg={6}>
-                <Fade in timeout={800}>
-                  <Box>
-                    {/* Badge */}
-                    <Zoom in timeout={1000}>
-                      <Chip
-                        icon={<School />}
-                        label="Built by developers, for everyone"
-                        variant="outlined"
-                        sx={{
-                          mb: 3,
-                          borderColor: "primary.main",
-                          color: "primary.main",
-                          fontWeight: 600,
-                          animation: `${slideInFromBottom} 0.8s ease-out`,
-                        }}
-                      />
-                    </Zoom>
+                <Box
+                  sx={{
+                    animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)`,
+                  }}
+                >
+                  {/* Badge */}
+                  <Chip
+                    icon={<School />}
+                    label="Built by developers, for everyone"
+                    variant="outlined"
+                    sx={{
+                      mb: 4,
+                      borderColor: "primary.main",
+                      color: "primary.main",
+                      fontWeight: 600,
+                      bgcolor: alpha(theme.palette.primary.main, 0.05),
+                      backdropFilter: "blur(10px)",
+                      border: `1px solid ${alpha(
+                        theme.palette.primary.main,
+                        0.2
+                      )}`,
+                      animation: `${scaleIn} 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) 0.2s both`,
+                    }}
+                  />
 
-                    <Typography
-                      variant="h1"
+                  <Typography
+                    variant="h1"
+                    sx={{
+                      fontWeight: 900,
+                      lineHeight: 1.1,
+                      mb: 4,
+                      animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.1s both`,
+                    }}
+                  >
+                    Stop drowning in
+                    <Box
+                      component="span"
                       sx={{
-                        fontWeight: 900,
-                        lineHeight: 1.1,
-                        mb: 3,
-                        animation: `${slideInFromBottom} 0.6s ease-out`,
+                        display: "block",
+                        background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                        backgroundClip: "text",
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
                       }}
                     >
-                      Stop drowning in
-                      <Box
-                        component="span"
+                      digital chaos
+                    </Box>
+                  </Typography>
+
+                  <Typography
+                    variant="h5"
+                    color="text.secondary"
+                    sx={{
+                      mb: 6,
+                      maxWidth: 600,
+                      lineHeight: 1.6,
+                      fontWeight: 400,
+                      animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.2s both`,
+                    }}
+                  >
+                    The first AI-powered file organizer that's actually private.
+                    Clean up years of digital mess in minutes, not hours.
+                  </Typography>
+
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={3}
+                    sx={{
+                      mb: 6,
+                      animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.3s both`,
+                    }}
+                  >
+                    {user ? (
+                      <Button
+                        variant="contained"
+                        size="large"
+                        endIcon={<ArrowForward />}
+                        onClick={onNavigateToDashboard}
                         sx={{
-                          display: "block",
                           background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                          backgroundClip: "text",
-                          WebkitBackgroundClip: "text",
-                          WebkitTextFillColor: "transparent",
+                          px: { xs: 4, sm: 6 },
+                          py: 2,
+                          fontSize: { xs: "1rem", sm: "1.2rem" },
+                          borderRadius: 4,
+                          transition:
+                            "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                          "&:hover": {
+                            transform: "translateY(-3px)",
+                            boxShadow: `0 12px 30px ${alpha(
+                              theme.palette.primary.main,
+                              0.3
+                            )}`,
+                          },
                         }}
                       >
-                        digital chaos
-                      </Box>
-                    </Typography>
+                        Go to Dashboard
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="contained"
+                        size="large"
+                        endIcon={<ArrowForward />}
+                        onClick={() =>
+                          handleSubscribe("free-trial", "free-trial")
+                        }
+                        sx={{
+                          background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                          px: { xs: 4, sm: 6 },
+                          py: 2,
+                          fontSize: { xs: "1rem", sm: "1.2rem" },
+                          borderRadius: 4,
+                          transition:
+                            "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                          "&:hover": {
+                            transform: "translateY(-3px)",
+                            boxShadow: `0 12px 30px ${alpha(
+                              theme.palette.primary.main,
+                              0.3
+                            )}`,
+                          },
+                        }}
+                      >
+                        Try Free Trial (14 Days)
+                      </Button>
+                    )}
 
-                    <Typography
-                      variant="h5"
-                      color="text.secondary"
+                    <Button
+                      variant="outlined"
+                      size="large"
+                      startIcon={<PlayArrow />}
+                      onClick={() => {
+                        const element = document.getElementById("how");
+                        element?.scrollIntoView({ behavior: "smooth" });
+                      }}
                       sx={{
-                        mb: 4,
-                        maxWidth: 600,
-                        lineHeight: 1.6,
-                        fontWeight: 400,
-                        animation: `${slideInFromBottom} 0.8s ease-out`,
+                        borderWidth: 2,
+                        px: { xs: 4, sm: 6 },
+                        py: 2,
+                        fontSize: { xs: "1rem", sm: "1.1rem" },
+                        borderRadius: 4,
+                        bgcolor: alpha(theme.palette.background.paper, 0.8),
+                        backdropFilter: "blur(10px)",
+                        transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                        "&:hover": {
+                          borderWidth: 2,
+                          transform: "translateY(-2px)",
+                          bgcolor: alpha(theme.palette.primary.main, 0.05),
+                        },
                       }}
                     >
-                      The first AI-powered file organizer that's actually
-                      private. Clean up years of digital mess in minutes, not
-                      hours.
-                    </Typography>
+                      See How It Works
+                    </Button>
+                  </Stack>
 
-                    <Stack
-                      direction={{ xs: "column", sm: "row" }}
-                      spacing={3}
-                      sx={{ mb: 4 }}
-                    >
-                      {user ? (
-                        <Zoom in timeout={1000}>
-                          <Button
-                            variant="contained"
-                            size="large"
-                            endIcon={<ArrowForward />}
-                            onClick={onNavigateToDashboard}
-                            sx={{
-                              background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                              px: { xs: 4, sm: 6 },
-                              py: 2,
-                              fontSize: { xs: "1rem", sm: "1.2rem" },
-                            }}
-                          >
-                            Go to Dashboard
-                          </Button>
-                        </Zoom>
-                      ) : (
-                        <Zoom in timeout={1000}>
-                          <Button
-                            variant="contained"
-                            size="large"
-                            endIcon={<ArrowForward />}
-                            onClick={() => handleSubscribe("free-trial")}
-                            sx={{
-                              background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                              px: { xs: 4, sm: 6 },
-                              py: 2,
-                              fontSize: { xs: "1rem", sm: "1.2rem" },
-                            }}
-                          >
-                            Try Free Trial (14 Days)
-                          </Button>
-                        </Zoom>
-                      )}
-
-                      <Zoom in timeout={1200}>
-                        <Button
-                          variant="outlined"
-                          size="large"
-                          startIcon={<PlayArrow />}
-                          onClick={() => {
-                            const element = document.getElementById("how");
-                            element?.scrollIntoView({ behavior: "smooth" });
-                          }}
-                          sx={{
-                            borderWidth: 2,
-                            px: { xs: 4, sm: 6 },
-                            py: 2,
-                            fontSize: { xs: "1rem", sm: "1.1rem" },
-                            "&:hover": {
-                              borderWidth: 2,
-                            },
-                          }}
-                        >
-                          See How It Works
-                        </Button>
-                      </Zoom>
-                    </Stack>
-
-                    {/* Trust Indicators */}
-                    <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                      {[
-                        {
-                          icon: <PrivacyTip />,
-                          label: "100% Local Processing",
-                        },
-                        { icon: <Backup />, label: "Full Backup Guaranteed" },
-                        {
-                          icon: <CheckCircle />,
-                          label: "Zero Data Collection",
-                        },
-                      ].map((item, index) => (
-                        <Fade in timeout={1400 + index * 200} key={index}>
-                          <Chip
-                            icon={item.icon}
-                            label={item.label}
-                            variant="outlined"
-                            sx={{
-                              fontWeight: 600,
-                              transition: "all 0.3s ease",
-                              "&:hover": {
-                                transform: "scale(1.05)",
-                                borderColor: "primary.main",
-                                color: "primary.main",
-                              },
-                            }}
-                          />
-                        </Fade>
-                      ))}
-                    </Box>
+                  {/* Trust Indicators */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      gap: 3,
+                      flexWrap: "wrap",
+                      animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.4s both`,
+                    }}
+                  >
+                    {[
+                      { icon: <PrivacyTip />, label: "100% Local Processing" },
+                      { icon: <Backup />, label: "Full Backup Guaranteed" },
+                      { icon: <CheckCircle />, label: "Zero Data Collection" },
+                    ].map((item, index) => (
+                      <Chip
+                        key={index}
+                        icon={item.icon}
+                        label={item.label}
+                        variant="outlined"
+                        sx={{
+                          fontWeight: 600,
+                          bgcolor: alpha(theme.palette.background.paper, 0.6),
+                          backdropFilter: "blur(10px)",
+                          border: `1px solid ${alpha(
+                            theme.palette.divider,
+                            0.2
+                          )}`,
+                          transition:
+                            "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                          animation: `${scaleIn} 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) ${
+                            0.5 + index * 0.1
+                          }s both`,
+                          "&:hover": {
+                            transform: "translateY(-2px)",
+                            borderColor: "primary.main",
+                            color: "primary.main",
+                            bgcolor: alpha(theme.palette.primary.main, 0.05),
+                          },
+                        }}
+                      />
+                    ))}
                   </Box>
-                </Fade>
+                </Box>
               </Grid>
 
-              <Grid item xs={12} lg={6}>
-                <Grow in timeout={1200}>
-                  <Box sx={{ position: "relative" }}>
-                    {/* Main Demo Card */}
-                    <Card
-                      sx={{
-                        p: { xs: 3, sm: 4 },
-                        background: alpha(theme.palette.background.paper, 0.8),
-                        backdropFilter: "blur(20px)",
-                        border: `1px solid ${alpha(
-                          theme.palette.primary.main,
-                          0.2
-                        )}`,
-                        boxShadow: `0 20px 60px ${alpha(
-                          theme.palette.primary.main,
-                          0.15
-                        )}`,
-                        animation: `${float} 6s ease-in-out infinite`,
-                      }}
-                    >
-                      <Stack spacing={3}>
-                        <Box
-                          sx={{ display: "flex", alignItems: "center", gap: 2 }}
-                        >
-                          <Avatar
-                            sx={{
-                              bgcolor: "primary.main",
-                              width: 48,
-                              height: 48,
-                            }}
-                          >
-                            <Scanner />
-                          </Avatar>
-                          <Box>
-                            <Typography variant="h6" fontWeight={700}>
-                              Scanning: ~/Documents/Projects
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Found 2,847 files across 127 folders
-                            </Typography>
-                          </Box>
-                        </Box>
+              <Grid item xs={12} lg={6} sx={{ ml: "auto" }}>
+                <Box
+                  sx={{
+                    position: "relative",
 
-                        <LinearProgress
-                          variant="determinate"
-                          value={85}
+                    animation: `${scaleIn} 1s cubic-bezier(0.25, 0.8, 0.25, 1) 0.3s both`,
+                  }}
+                >
+                  {/* Main Demo Card */}
+                  <Card
+                    sx={{
+                      p: { xs: 3, sm: 4 },
+                      background: alpha(theme.palette.background.paper, 0.8),
+                      backdropFilter: "blur(20px)",
+                      border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                      borderRadius: 3,
+                      boxShadow: `0 20px 60px ${alpha(
+                        theme.palette.common.black,
+                        mode === "dark" ? 0.3 : 0.1
+                      )}`,
+                      animation: `${gentleFloat} 8s ease-in-out infinite`,
+                      transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                      "&:hover": {
+                        transform: "translateY(-5px)",
+                        boxShadow: `0 25px 70px ${alpha(
+                          theme.palette.common.black,
+                          mode === "dark" ? 0.4 : 0.15
+                        )}`,
+                      },
+                    }}
+                  >
+                    <Stack spacing={4}>
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 2 }}
+                      >
+                        <Avatar
                           sx={{
-                            height: 12,
-                            borderRadius: 6,
-                            backgroundColor: alpha(
-                              theme.palette.primary.main,
-                              0.1
-                            ),
-                            "& .MuiLinearProgress-bar": {
-                              borderRadius: 6,
-                              background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                            },
+                            bgcolor: "primary.main",
+                            width: 48,
+                            height: 48,
                           }}
-                        />
+                        >
+                          <Scanner />
+                        </Avatar>
+                        <Box>
+                          <Typography variant="h6" fontWeight={700}>
+                            Scanning: ~/Documents/Projects
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Found 2,847 files across 127 folders
+                          </Typography>
+                        </Box>
+                      </Box>
 
-                        <Grid container spacing={2}>
-                          {[
-                            {
-                              count: 847,
-                              label: "PDFs",
-                              color: "primary.main",
-                            },
-                            {
-                              count: 423,
-                              label: "Images",
-                              color: "secondary.main",
-                            },
-                            {
-                              count: 1577,
-                              label: "Others",
-                              color: "success.main",
-                            },
-                          ].map((item, index) => (
-                            <Grid item xs={4} key={index}>
-                              <Zoom in timeout={1600 + index * 200}>
-                                <Box sx={{ textAlign: "center" }}>
-                                  <Typography
-                                    variant="h4"
-                                    fontWeight={700}
-                                    color={item.color}
-                                  >
-                                    {item.count}
-                                  </Typography>
-                                  <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                  >
-                                    {item.label}
-                                  </Typography>
-                                </Box>
-                              </Zoom>
-                            </Grid>
-                          ))}
-                        </Grid>
+                      <LinearProgress
+                        variant="determinate"
+                        value={85}
+                        sx={{
+                          height: 12,
+                          borderRadius: 6,
+                          backgroundColor: alpha(
+                            theme.palette.primary.main,
+                            0.1
+                          ),
+                          "& .MuiLinearProgress-bar": {
+                            borderRadius: 6,
+                            background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                          },
+                        }}
+                      />
 
-                        <Fade in timeout={2000}>
-                          <Box
-                            sx={{
-                              p: 2,
-                              bgcolor: alpha(theme.palette.success.main, 0.1),
-                              borderRadius: 2,
-                              border: `1px solid ${alpha(
-                                theme.palette.success.main,
-                                0.2
-                              )}`,
-                            }}
-                          >
-                            <Typography
-                              variant="body2"
-                              fontWeight={600}
-                              color="success.main"
-                            >
-                              ✨ AI Plan Ready: Organizing into 12 logical
-                              folders
-                            </Typography>
-                          </Box>
-                        </Fade>
-                      </Stack>
-                    </Card>
-                  </Box>
-                </Grow>
+                      <Grid container spacing={3}>
+                        {[
+                          { count: 847, label: "PDFs", color: "primary.main" },
+                          {
+                            count: 423,
+                            label: "Images",
+                            color: "secondary.main",
+                          },
+                          {
+                            count: 1577,
+                            label: "Others",
+                            color: "success.main",
+                          },
+                        ].map((item, index) => (
+                          <Grid item xs={4} key={index}>
+                            <Box sx={{ textAlign: "center" }}>
+                              <Typography
+                                variant="h4"
+                                fontWeight={700}
+                                color={item.color}
+                              >
+                                {item.count}
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                {item.label}
+                              </Typography>
+                            </Box>
+                          </Grid>
+                        ))}
+                      </Grid>
+
+                      <Box
+                        sx={{
+                          p: 3,
+                          bgcolor: alpha(theme.palette.success.main, 0.1),
+                          borderRadius: 3,
+                          border: `1px solid ${alpha(
+                            theme.palette.success.main,
+                            0.2
+                          )}`,
+                        }}
+                      >
+                        <Typography
+                          variant="body2"
+                          fontWeight={600}
+                          color="success.main"
+                        >
+                          ✨ AI Plan Ready: Organizing into 12 logical folders
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Card>
+                </Box>
               </Grid>
             </Grid>
-          </Container>
+          </Box>
         </Box>
 
         {/* How It Works */}
         <Box
           id="how"
-          sx={{ py: { xs: 8, md: 16 }, bgcolor: "background.paper" }}
+          sx={{
+            py: { xs: 8, md: 16 },
+            bgcolor: alpha(theme.palette.background.paper, 0.6),
+            backdropFilter: "blur(20px)",
+            maxWidth: "100%",
+          }}
         >
-          <Container maxWidth="xl">
-            <Box sx={{ textAlign: "center", mb: 8 }}>
-              <Typography variant="h2" sx={{ mb: 3, fontWeight: 800 }}>
+          <Box sx={{ px: { xs: 3, md: 6, lg: 8 }, maxWidth: "100%" }}>
+            <Box sx={{ textAlign: "center", mb: 12 }}>
+              <Typography
+                variant="h2"
+                sx={{
+                  mb: 4,
+                  fontWeight: 800,
+                  animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)`,
+                }}
+              >
                 How It Actually Works
               </Typography>
               <Typography
                 variant="h5"
                 color="text.secondary"
-                sx={{ maxWidth: 800, mx: "auto", lineHeight: 1.6 }}
+                sx={{
+                  maxWidth: 800,
+                  mx: "auto",
+                  lineHeight: 1.6,
+                  animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.1s both`,
+                }}
               >
                 Three simple steps. No cloud uploads, no data mining, no BS.
                 Just smart organization that respects your privacy.
               </Typography>
             </Box>
 
-            <Stack spacing={8}>
+            <Stack spacing={12}>
               {steps.map((step, index) => (
-                <Fade in timeout={800 + index * 200} key={index}>
-                  <Grid container spacing={6} alignItems="center">
-                    <Grid
-                      item
-                      xs={12}
-                      md={6}
-                      order={{ xs: 2, md: index % 2 === 0 ? 1 : 2 }}
-                    >
-                      <Box>
-                        <Chip
-                          label={`Step ${step.step}`}
-                          variant="outlined"
-                          sx={{
-                            mb: 2,
-                            borderColor: "primary.main",
-                            color: "primary.main",
-                            fontWeight: 700,
-                          }}
-                        />
-                        <Typography
-                          variant="h3"
-                          sx={{ mb: 3, fontWeight: 700 }}
-                        >
-                          {step.title}
-                        </Typography>
-                        <Typography
-                          variant="h6"
-                          color="text.secondary"
-                          sx={{ mb: 4, lineHeight: 1.7 }}
-                        >
-                          {step.description}
-                        </Typography>
-                        <Stack spacing={2}>
-                          {step.features.map((feature, i) => (
-                            <Slide
-                              direction="right"
-                              in
-                              timeout={1000 + i * 200}
-                              key={i}
-                            >
-                              <Box
-                                sx={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 2,
-                                }}
-                              >
-                                <CheckCircle fontSize="small" color="success" />
-                                <Typography variant="body1">
-                                  {feature}
-                                </Typography>
-                              </Box>
-                            </Slide>
-                          ))}
-                        </Stack>
-                      </Box>
-                    </Grid>
-                    <Grid
-                      item
-                      xs={12}
-                      md={6}
-                      order={{ xs: 1, md: index % 2 === 0 ? 2 : 1 }}
-                    >
-                      <Zoom in timeout={1200}>
-                        <Box
-                          sx={{
-                            position: "relative",
-                            borderRadius: 3,
-                            overflow: "hidden",
-                            boxShadow: `0 20px 60px ${alpha(
-                              theme.palette.common.black,
-                              0.1
-                            )}`,
-                            transition: "transform 0.3s ease",
-                            "&:hover": {
-                              transform: "scale(1.02)",
-                            },
-                          }}
-                        >
+                <Grid
+                  container
+                  spacing={8}
+                  alignItems="center"
+                  key={index}
+                  sx={{
+                    animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) ${
+                      0.2 + index * 0.1
+                    }s both`,
+                  }}
+                >
+                  <Grid
+                    item
+                    xs={12}
+                    md={6}
+                    order={{ xs: 2, md: index % 2 === 0 ? 1 : 2 }}
+                  >
+                    <Box>
+                      <Chip
+                        label={`Step ${step.step}`}
+                        variant="outlined"
+                        sx={{
+                          mb: 3,
+                          borderColor: "primary.main",
+                          color: "primary.main",
+                          fontWeight: 700,
+                          bgcolor: alpha(theme.palette.primary.main, 0.05),
+                        }}
+                      />
+                      <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>
+                        {step.title}
+                      </Typography>
+                      <Typography
+                        variant="h6"
+                        color="text.secondary"
+                        sx={{ mb: 6, lineHeight: 1.7 }}
+                      >
+                        {step.description}
+                      </Typography>
+                      <Stack spacing={3}>
+                        {step.features.map((feature, i) => (
                           <Box
+                            key={i}
                             sx={{
-                              width: "100%",
-                              height: { xs: 300, sm: 400 },
-                              bgcolor: alpha(theme.palette.primary.main, 0.05),
                               display: "flex",
                               alignItems: "center",
-                              justifyContent: "center",
-                              border: `2px dashed ${alpha(
-                                theme.palette.primary.main,
-                                0.3
-                              )}`,
+                              gap: 2,
+                              animation: `${fadeInUp} 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) ${
+                                0.3 + i * 0.1
+                              }s both`,
                             }}
                           >
-                            <Stack spacing={2} alignItems="center">
-                              <Computer
-                                sx={{
-                                  fontSize: { xs: 60, sm: 80 },
-                                  color: "primary.main",
-                                  opacity: 0.7,
-                                }}
-                              />
-                              <Typography variant="h6" color="text.secondary">
-                                App Screenshot: {step.title}
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                              >
-                                {step.image}
-                              </Typography>
-                            </Stack>
+                            <CheckCircle fontSize="small" color="success" />
+                            <Typography variant="body1">{feature}</Typography>
                           </Box>
-                        </Box>
-                      </Zoom>
-                    </Grid>
+                        ))}
+                      </Stack>
+                    </Box>
                   </Grid>
-                </Fade>
-              ))}
-            </Stack>
-          </Container>
-        </Box>
-
-        {/* Social Proof - Updated to fit horizontally */}
-        <Box sx={{ py: { xs: 8, md: 12 } }}>
-          <Container maxWidth="xl">
-            <Box sx={{ textAlign: "center", mb: 8 }}>
-              <Typography variant="h2" sx={{ mb: 3, fontWeight: 800 }}>
-                People Love It
-              </Typography>
-              <Typography variant="h5" color="text.secondary">
-                Real feedback from real users (not fake reviews)
-              </Typography>
-            </Box>
-
-            <Grid container spacing={4} justifyContent="center">
-              {testimonials.map((testimonial, index) => (
-                <Grid item xs={12} md={4} key={index}>
-                  <Grow in timeout={1000 + index * 200}>
-                    <Card
+                  <Grid
+                    item
+                    xs={12}
+                    md={6}
+                    order={{ xs: 1, md: index % 2 === 0 ? 2 : 1 }}
+                  >
+                    <Box
                       sx={{
-                        p: 4,
-                        height: "100%",
-                        background: alpha(theme.palette.background.paper, 0.8),
-                        backdropFilter: "blur(10px)",
-                        border: `1px solid ${alpha(
-                          theme.palette.divider,
-                          0.1
+                        position: "relative",
+                        borderRadius: 4,
+                        overflow: "hidden",
+                        boxShadow: `0 20px 60px ${alpha(
+                          theme.palette.common.black,
+                          mode === "dark" ? 0.3 : 0.1
                         )}`,
-                        transition: "all 0.3s ease",
+                        transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
                         "&:hover": {
-                          transform: "translateY(-8px)",
-                          boxShadow: `0 20px 40px ${alpha(
-                            theme.palette.primary.main,
-                            0.15
+                          transform: "translateY(-5px)",
+                          boxShadow: `0 25px 70px ${alpha(
+                            theme.palette.common.black,
+                            mode === "dark" ? 0.4 : 0.15
                           )}`,
                         },
                       }}
                     >
-                      <Stack spacing={3}>
-                        <Typography
-                          variant="body1"
-                          sx={{
-                            fontStyle: "italic",
-                            lineHeight: 1.7,
-                            fontSize: "1.1rem",
-                          }}
+                      <Box
+                        sx={{
+                          width: "100%",
+                          height: { xs: 300, sm: 400 },
+                          bgcolor: alpha(theme.palette.primary.main, 0.05),
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: `2px dashed ${alpha(
+                            theme.palette.primary.main,
+                            0.3
+                          )}`,
+                        }}
+                      >
+                        <Stack spacing={2} alignItems="center">
+                          <Computer
+                            sx={{
+                              fontSize: { xs: 60, sm: 80 },
+                              color: "primary.main",
+                              opacity: 0.7,
+                            }}
+                          />
+                          <Typography variant="h6" color="text.secondary">
+                            App Screenshot: {step.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {step.image}
+                          </Typography>
+                        </Stack>
+                      </Box>
+                    </Box>
+                  </Grid>
+                </Grid>
+              ))}
+            </Stack>
+          </Box>
+        </Box>
+
+        {/* Social Proof */}
+        <Box sx={{ py: { xs: 8, md: 12 }, maxWidth: "100%" }}>
+          <Box sx={{ px: { xs: 3, md: 6, lg: 8 }, maxWidth: "100%" }}>
+            <Box sx={{ textAlign: "center", mb: 12 }}>
+              <Typography
+                variant="h2"
+                sx={{
+                  mb: 4,
+                  fontWeight: 800,
+                  animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)`,
+                }}
+              >
+                People Love It
+              </Typography>
+              <Typography
+                variant="h5"
+                color="text.secondary"
+                sx={{
+                  animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.1s both`,
+                }}
+              >
+                Real feedback from real users (not fake reviews)
+              </Typography>
+            </Box>
+
+            <Grid container spacing={6} justifyContent="center">
+              {testimonials.map((testimonial, index) => (
+                <Grid item xs={12} md={4} key={index}>
+                  <Card
+                    sx={{
+                      p: 5,
+                      height: "100%",
+                      background: alpha(theme.palette.background.paper, 0.8),
+                      backdropFilter: "blur(20px)",
+                      border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                      borderRadius: 4,
+                      transition: "all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                      animation: `${scaleIn} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) ${
+                        0.2 + index * 0.1
+                      }s both`,
+                      "&:hover": {
+                        transform: "translateY(-8px)",
+                        boxShadow: `0 20px 40px ${alpha(
+                          theme.palette.primary.main,
+                          0.15
+                        )}`,
+                      },
+                    }}
+                  >
+                    <Stack spacing={4}>
+                      <Typography
+                        variant="body1"
+                        sx={{
+                          fontStyle: "italic",
+                          lineHeight: 1.7,
+                          fontSize: "1.1rem",
+                        }}
+                      >
+                        "{testimonial.content}"
+                      </Typography>
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 2 }}
+                      >
+                        <Avatar
+                          src={testimonial.avatar}
+                          sx={{ width: 48, height: 48 }}
                         >
-                          "{testimonial.content}"
-                        </Typography>
-                        <Box
-                          sx={{ display: "flex", alignItems: "center", gap: 2 }}
-                        >
-                          <Avatar
-                            src={testimonial.avatar}
-                            sx={{ width: 48, height: 48 }}
-                          >
-                            {testimonial.name.charAt(0)}
-                          </Avatar>
-                          <Box>
-                            <Typography variant="subtitle1" fontWeight={600}>
-                              {testimonial.name}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {testimonial.role}
-                            </Typography>
-                          </Box>
+                          {testimonial.name.charAt(0)}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="subtitle1" fontWeight={600}>
+                            {testimonial.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {testimonial.role}
+                          </Typography>
                         </Box>
-                      </Stack>
-                    </Card>
-                  </Grow>
+                      </Box>
+                    </Stack>
+                  </Card>
                 </Grid>
               ))}
             </Grid>
-          </Container>
+          </Box>
         </Box>
 
-        {/* Features Grid - Updated to 2 rows of 3 */}
+        {/* Features Grid */}
         <Box
           id="features"
-          sx={{ py: { xs: 8, md: 16 }, bgcolor: "background.paper" }}
+          sx={{
+            py: { xs: 8, md: 16 },
+            bgcolor: alpha(theme.palette.background.paper, 0.6),
+            backdropFilter: "blur(20px)",
+            maxWidth: "100%",
+          }}
         >
-          <Container maxWidth="xl">
-            <Box sx={{ textAlign: "center", mb: 8 }}>
-              <Typography variant="h2" sx={{ mb: 3, fontWeight: 800 }}>
+          <Box sx={{ px: { xs: 3, md: 6, lg: 8 }, maxWidth: "100%" }}>
+            <Box sx={{ textAlign: "center", mb: 12 }}>
+              <Typography
+                variant="h2"
+                sx={{
+                  mb: 4,
+                  fontWeight: 800,
+                  animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)`,
+                }}
+              >
                 Why Choose Neatly
               </Typography>
               <Typography
                 variant="h5"
                 color="text.secondary"
-                sx={{ maxWidth: 800, mx: "auto", lineHeight: 1.6 }}
+                sx={{
+                  maxWidth: 800,
+                  mx: "auto",
+                  lineHeight: 1.6,
+                  animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.1s both`,
+                }}
               >
                 Built with privacy, security, and actual usefulness in mind
               </Typography>
             </Box>
 
-            <Grid container spacing={4} justifyContent="center">
+            <Grid container spacing={6} justifyContent="center">
               {features.map((feature, index) => (
                 <Grid item xs={12} sm={6} md={4} key={index}>
-                  <Grow in timeout={800 + index * 100}>
-                    <Card
-                      sx={{
-                        p: 4,
-                        height: "100%",
-                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                        cursor: "pointer",
-                        position: "relative",
-                        overflow: "hidden",
+                  <Card
+                    sx={{
+                      p: 5,
+                      height: "100%",
+                      background: alpha(theme.palette.background.paper, 0.8),
+                      backdropFilter: "blur(20px)",
+                      border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                      borderRadius: 4,
+                      transition: "all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                      cursor: "pointer",
+                      position: "relative",
+                      overflow: "hidden",
+                      animation: `${scaleIn} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) ${
+                        0.1 + index * 0.05
+                      }s both`,
+                      "&::before": {
+                        content: '""',
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: `linear-gradient(135deg, ${alpha(
+                          theme.palette.primary.main,
+                          0
+                        )}, ${alpha(theme.palette.primary.main, 0.08)})`,
+                        opacity: 0,
+                        transition: "opacity 0.3s ease",
+                      },
+                      "&:hover": {
+                        transform: "translateY(-8px)",
+                        boxShadow: `0 20px 60px ${alpha(
+                          theme.palette.primary.main,
+                          0.15
+                        )}`,
                         "&::before": {
-                          content: '""',
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          background: `linear-gradient(135deg, ${alpha(
-                            theme.palette.primary.main,
-                            0
-                          )}, ${alpha(theme.palette.primary.main, 0.1)})`,
-                          opacity: 0,
-                          transition: "opacity 0.3s ease",
+                          opacity: 1,
                         },
-                        "&:hover": {
-                          transform: "translateY(-8px)",
-                          boxShadow: `0 20px 60px ${alpha(
-                            theme.palette.primary.main,
-                            0.15
-                          )}`,
-                          "&::before": {
-                            opacity: 1,
-                          },
-                        },
-                      }}
+                      },
+                    }}
+                  >
+                    <Stack
+                      spacing={4}
+                      sx={{ height: "100%", position: "relative", zIndex: 1 }}
                     >
-                      <Stack
-                        spacing={3}
-                        sx={{ height: "100%", position: "relative", zIndex: 1 }}
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "flex-start",
+                        }}
                       >
                         <Box
                           sx={{
+                            width: 64,
+                            height: 64,
+                            borderRadius: 3,
                             display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "flex-start",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: `linear-gradient(135deg, ${alpha(
+                              theme.palette.primary.main,
+                              0.1
+                            )}, ${alpha(theme.palette.secondary.main, 0.1)})`,
+                            color: "primary.main",
+                            animation: `${gentleFloat} ${
+                              4 + index * 0.5
+                            }s ease-in-out infinite`,
                           }}
                         >
-                          <Box
-                            sx={{
-                              width: 64,
-                              height: 64,
-                              borderRadius: 3,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              background: `linear-gradient(135deg, ${alpha(
-                                theme.palette.primary.main,
-                                0.1
-                              )}, ${alpha(theme.palette.secondary.main, 0.1)})`,
-                              color: "primary.main",
-                              animation: `${pulse} 3s ease-in-out infinite`,
-                              animationDelay: `${index * 0.2}s`,
-                            }}
-                          >
-                            {feature.icon}
-                          </Box>
-                          <Chip
-                            label={feature.highlight}
-                            size="small"
-                            color="primary"
-                            variant="outlined"
-                            sx={{ fontWeight: 600 }}
-                          />
+                          {feature.icon}
                         </Box>
+                        <Chip
+                          label={feature.highlight}
+                          size="small"
+                          color="primary"
+                          variant="outlined"
+                          sx={{
+                            fontWeight: 600,
+                            bgcolor: alpha(theme.palette.primary.main, 0.05),
+                          }}
+                        />
+                      </Box>
 
-                        <Box sx={{ flexGrow: 1 }}>
-                          <Typography
-                            variant="h5"
-                            fontWeight={700}
-                            gutterBottom
-                          >
-                            {feature.title}
-                          </Typography>
-                          <Typography
-                            variant="body1"
-                            color="text.secondary"
-                            sx={{ lineHeight: 1.7 }}
-                          >
-                            {feature.description}
-                          </Typography>
-                        </Box>
-                      </Stack>
-                    </Card>
-                  </Grow>
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Typography variant="h5" fontWeight={700} gutterBottom>
+                          {feature.title}
+                        </Typography>
+                        <Typography
+                          variant="body1"
+                          color="text.secondary"
+                          sx={{ lineHeight: 1.7 }}
+                        >
+                          {feature.description}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Card>
                 </Grid>
               ))}
             </Grid>
 
             {/* Privacy Guarantee Section */}
-            <Box sx={{ mt: 12, textAlign: "center" }}>
-              <Zoom in timeout={1200}>
-                <Paper
+            <Box sx={{ mt: 16, textAlign: "center" }}>
+              <Paper
+                sx={{
+                  p: { xs: 5, sm: 8 },
+                  background: `linear-gradient(135deg, ${alpha(
+                    theme.palette.success.main,
+                    0.05
+                  )}, ${alpha(theme.palette.primary.main, 0.05)})`,
+                  border: `2px solid ${alpha(theme.palette.success.main, 0.2)}`,
+                  borderRadius: 6,
+                  position: "relative",
+                  overflow: "hidden",
+                  animation: `${scaleIn} 1s cubic-bezier(0.25, 0.8, 0.25, 1) 0.3s both`,
+                }}
+              >
+                <Security
                   sx={{
-                    p: { xs: 4, sm: 6 },
-                    background: `linear-gradient(135deg, ${alpha(
-                      theme.palette.success.main,
-                      0.05
-                    )}, ${alpha(theme.palette.primary.main, 0.05)})`,
-                    border: `2px solid ${alpha(
-                      theme.palette.success.main,
-                      0.2
-                    )}`,
-                    position: "relative",
-                    overflow: "hidden",
+                    fontSize: 64,
+                    color: "success.main",
+                    mb: 4,
+                    animation: `${gentleFloat} 6s ease-in-out infinite`,
+                  }}
+                />
+                <Typography variant="h3" fontWeight={800} gutterBottom>
+                  Privacy Promise
+                </Typography>
+                <Typography
+                  variant="h6"
+                  color="text.secondary"
+                  sx={{ mb: 6, maxWidth: 600, mx: "auto", lineHeight: 1.7 }}
+                >
+                  Your files never leave your computer. Ever. We only send
+                  anonymized metadata to AI - no file contents, no personal
+                  info, no tracking. Open source soon.
+                </Typography>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={4}
+                  justifyContent="center"
+                  sx={{
+                    animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.5s both`,
                   }}
                 >
-                  <Box
-                    sx={{
-                      position: "absolute",
-                      top: -100,
-                      right: -100,
-                      width: 200,
-                      height: 200,
-                      borderRadius: "50%",
-                      background: alpha(theme.palette.success.main, 0.1),
-                      animation: `${float} 4s ease-in-out infinite`,
-                    }}
-                  />
-                  <Security
-                    sx={{ fontSize: 64, color: "success.main", mb: 3 }}
-                  />
-                  <Typography variant="h3" fontWeight={800} gutterBottom>
-                    Privacy Promise
-                  </Typography>
-                  <Typography
-                    variant="h6"
-                    color="text.secondary"
-                    sx={{ mb: 4, maxWidth: 600, mx: "auto", lineHeight: 1.7 }}
-                  >
-                    Your files never leave your computer. Ever. We only send
-                    anonymized metadata to AI - no file contents, no personal
-                    info, no tracking. Open source soon.
-                  </Typography>
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={3}
-                    justifyContent="center"
-                  >
-                    {[
-                      "100% Local Processing",
-                      "Zero Data Collection",
-                      "Full Source Access",
-                    ].map((item, index) => (
-                      <Fade in timeout={1400 + index * 200} key={index}>
-                        <Box
-                          sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                        >
-                          <CheckCircle color="success" />
-                          <Typography fontWeight={600}>{item}</Typography>
-                        </Box>
-                      </Fade>
-                    ))}
-                  </Stack>
-                </Paper>
-              </Zoom>
+                  {[
+                    "100% Local Processing",
+                    "Zero Data Collection",
+                    "Full Source Access",
+                  ].map((item, index) => (
+                    <Box
+                      key={index}
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        animation: `${scaleIn} 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) ${
+                          0.6 + index * 0.1
+                        }s both`,
+                      }}
+                    >
+                      <CheckCircle color="success" />
+                      <Typography fontWeight={600}>{item}</Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Paper>
             </Box>
-          </Container>
+          </Box>
         </Box>
 
         {/* Pricing */}
-        <Box id="pricing" sx={{ py: { xs: 8, md: 16 } }}>
-          <Container maxWidth="xl">
-            <Box sx={{ textAlign: "center", mb: 8 }}>
-              <Typography variant="h2" sx={{ mb: 3, fontWeight: 800 }}>
+        <Box id="pricing" sx={{ py: { xs: 8, md: 16 }, maxWidth: "100%" }}>
+          <Box sx={{ px: { xs: 3, md: 6, lg: 8 }, maxWidth: "100%" }}>
+            <Box sx={{ textAlign: "center", mb: 12 }}>
+              <Typography
+                variant="h2"
+                sx={{
+                  mb: 4,
+                  fontWeight: 800,
+                  animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)`,
+                }}
+              >
                 Honest Pricing
               </Typography>
               <Typography
                 variant="h5"
                 color="text.secondary"
-                sx={{ maxWidth: 600, mx: "auto", lineHeight: 1.6 }}
+                sx={{
+                  maxWidth: 600,
+                  mx: "auto",
+                  lineHeight: 1.6,
+                  animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.1s both`,
+                }}
               >
                 No hidden fees, no data harvesting revenue model. Just fair
                 pricing for a tool that actually works.
               </Typography>
             </Box>
 
-            <Grid container spacing={4} justifyContent="center">
+            <Grid container spacing={6} justifyContent="center">
               {pricingTiers.map((tier, index) => (
                 <Grid item xs={12} sm={6} md={4} key={index}>
-                  <Grow in timeout={1000 + index * 200}>
-                    <Card
-                      sx={{
-                        p: 4,
-                        height: "100%",
-                        position: "relative",
-                        border: tier.popular ? 3 : 1,
-                        borderColor: tier.popular ? "primary.main" : "divider",
-                        transform: tier.popular ? "scale(1.05)" : "scale(1)",
-                        background: tier.popular
-                          ? `linear-gradient(135deg, ${alpha(
-                              theme.palette.primary.main,
-                              0.05
-                            )}, ${alpha(theme.palette.secondary.main, 0.05)})`
-                          : "background.paper",
-                        transition: "all 0.3s ease",
-                        "&:hover": {
-                          transform: tier.popular
-                            ? "scale(1.08)"
-                            : "scale(1.03)",
-                          boxShadow: `0 20px 60px ${alpha(
+                  <Card
+                    sx={{
+                      p: 5,
+                      height: "100%",
+                      position: "relative",
+                      border: tier.popular ? 3 : 1,
+                      borderColor: tier.popular ? "primary.main" : "divider",
+                      transform: tier.popular ? "scale(1.05)" : "scale(1)",
+                      background: tier.popular
+                        ? `linear-gradient(135deg, ${alpha(
                             theme.palette.primary.main,
-                            0.2
-                          )}`,
-                        },
-                      }}
-                    >
-                      {tier.popular && (
-                        <Chip
-                          label="Most Popular"
-                          color="primary"
+                            0.05
+                          )}, ${alpha(theme.palette.secondary.main, 0.05)})`
+                        : alpha(theme.palette.background.paper, 0.8),
+                      backdropFilter: "blur(20px)",
+                      borderRadius: 4,
+                      transition: "all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                      animation: `${scaleIn} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) ${
+                        0.2 + index * 0.1
+                      }s both`,
+                      "&:hover": {
+                        transform: tier.popular ? "scale(1.08)" : "scale(1.03)",
+                        boxShadow: `0 20px 60px ${alpha(
+                          theme.palette.primary.main,
+                          0.2
+                        )}`,
+                      },
+                    }}
+                  >
+                    {tier.popular && (
+                      <Chip
+                        label="Most Popular"
+                        color="primary"
+                        sx={{
+                          position: "absolute",
+                          top: -12,
+                          left: "50%",
+                          transform: "translateX(-50%)",
+                          fontWeight: 700,
+                          px: 2,
+                          animation: `${gentleFloat} 3s ease-in-out infinite`,
+                        }}
+                      />
+                    )}
+
+                    <Stack spacing={4} sx={{ height: "100%" }}>
+                      <Box sx={{ textAlign: "center" }}>
+                        <Typography variant="h4" fontWeight={700} gutterBottom>
+                          {tier.title}
+                        </Typography>
+                        <Box
                           sx={{
-                            position: "absolute",
-                            top: -12,
-                            left: "50%",
-                            transform: "translateX(-50%)",
-                            fontWeight: 700,
-                            px: 2,
-                            animation: `${pulse} 2s ease-in-out infinite`,
-                          }}
-                        />
-                      )}
-
-                      <Stack spacing={3} sx={{ height: "100%" }}>
-                        <Box sx={{ textAlign: "center" }}>
-                          <Typography
-                            variant="h4"
-                            fontWeight={700}
-                            gutterBottom
-                          >
-                            {tier.title}
-                          </Typography>
-                          <Box
-                            sx={{
-                              display: "flex",
-                              alignItems: "baseline",
-                              justifyContent: "center",
-                              mb: 1,
-                            }}
-                          >
-                            <Typography variant="h2" fontWeight={800}>
-                              {tier.price}
-                            </Typography>
-                            <Typography variant="h5" color="text.secondary">
-                              {tier.period}
-                            </Typography>
-                          </Box>
-                          <Typography
-                            variant="body1"
-                            color="primary.main"
-                            fontWeight={600}
-                          >
-                            {tier.credits}
-                          </Typography>
-                        </Box>
-
-                        <Box sx={{ flexGrow: 1 }}>
-                          <Stack spacing={2}>
-                            {tier.features.map((feature, i) => (
-                              <Slide
-                                direction="left"
-                                in
-                                timeout={1200 + i * 100}
-                                key={i}
-                              >
-                                <Box
-                                  sx={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 2,
-                                  }}
-                                >
-                                  <CheckCircle
-                                    fontSize="small"
-                                    color="success"
-                                  />
-                                  <Typography variant="body1">
-                                    {feature}
-                                  </Typography>
-                                </Box>
-                              </Slide>
-                            ))}
-                          </Stack>
-                        </Box>
-
-                        <Button
-                          fullWidth
-                          variant={tier.popular ? "contained" : "outlined"}
-                          size="large"
-                          onClick={() => handleSubscribe(tier.id)}
-                          disabled={paymentLoading === tier.id}
-                          sx={{
-                            py: 2,
-                            fontSize: "1.1rem",
-                            fontWeight: 700,
-                            ...(tier.popular && {
-                              background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                            }),
+                            display: "flex",
+                            alignItems: "baseline",
+                            justifyContent: "center",
+                            mb: 2,
                           }}
                         >
-                          {paymentLoading === tier.id ? (
-                            <CircularProgress size={24} />
-                          ) : tier.isTrial ? (
-                            "Start Free Trial"
-                          ) : (
-                            `Get ${tier.title}`
-                          )}
-                        </Button>
-                      </Stack>
-                    </Card>
-                  </Grow>
+                          <Typography variant="h2" fontWeight={800}>
+                            {tier.price}
+                          </Typography>
+                          <Typography variant="h5" color="text.secondary">
+                            {tier.period}
+                          </Typography>
+                        </Box>
+                        <Typography
+                          variant="body1"
+                          color="primary.main"
+                          fontWeight={600}
+                        >
+                          {tier.credits}
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Stack spacing={3}>
+                          {tier.features.map((feature, i) => (
+                            <Box
+                              key={i}
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 2,
+                                animation: `${fadeInUp} 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) ${
+                                  0.4 + i * 0.05
+                                }s both`,
+                              }}
+                            >
+                              <CheckCircle fontSize="small" color="success" />
+                              <Typography variant="body1">{feature}</Typography>
+                            </Box>
+                          ))}
+                        </Stack>
+                      </Box>
+
+                      <Button
+                        fullWidth
+                        variant={tier.popular ? "contained" : "outlined"}
+                        size="large"
+                        onClick={() => handleSubscribe(tier.id, tier.id)}
+                        disabled={paymentLoading === tier.id}
+                        sx={{
+                          py: 2,
+                          fontSize: "1.1rem",
+                          fontWeight: 700,
+                          borderRadius: 3,
+                          transition:
+                            "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                          ...(tier.popular && {
+                            background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                          }),
+                          "&:hover": {
+                            transform: "translateY(-2px)",
+                          },
+                        }}
+                      >
+                        {paymentLoading === tier.id ? (
+                          <CircularProgress size={24} />
+                        ) : tier.isTrial ? (
+                          "Start Free Trial"
+                        ) : (
+                          `Get ${tier.title}`
+                        )}
+                      </Button>
+                    </Stack>
+                  </Card>
                 </Grid>
               ))}
             </Grid>
@@ -1308,76 +1408,103 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               variant="body1"
               textAlign="center"
               color="text.secondary"
-              sx={{ mt: 6 }}
+              sx={{
+                mt: 8,
+                animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.5s both`,
+              }}
             >
               All plans include 14-day money-back guarantee. Cancel anytime,
               keep your organized files forever.
             </Typography>
-          </Container>
+          </Box>
         </Box>
 
         {/* FAQ */}
         <Box
           id="faq"
-          sx={{ py: { xs: 8, md: 16 }, bgcolor: "background.paper" }}
+          sx={{
+            py: { xs: 8, md: 16 },
+            bgcolor: alpha(theme.palette.background.paper, 0.6),
+            backdropFilter: "blur(20px)",
+            maxWidth: "100%",
+          }}
         >
-          <Container maxWidth="md">
-            <Box sx={{ textAlign: "center", mb: 8 }}>
-              <Typography variant="h2" sx={{ mb: 3, fontWeight: 800 }}>
+          <Box
+            sx={{ px: { xs: 3, md: 6, lg: 8 }, maxWidth: "1200px", mx: "auto" }}
+          >
+            <Box sx={{ textAlign: "center", mb: 12 }}>
+              <Typography
+                variant="h2"
+                sx={{
+                  mb: 4,
+                  fontWeight: 800,
+                  animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)`,
+                }}
+              >
                 Questions? Answers.
               </Typography>
-              <Typography variant="h5" color="text.secondary">
+              <Typography
+                variant="h5"
+                color="text.secondary"
+                sx={{
+                  animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.1s both`,
+                }}
+              >
                 The honest answers to questions everyone asks
               </Typography>
             </Box>
 
-            <Stack spacing={2}>
+            <Stack spacing={3}>
               {faqs.map((faq, index) => (
-                <Fade in timeout={800 + index * 100} key={index}>
-                  <Accordion
+                <Accordion
+                  key={index}
+                  sx={{
+                    "&:before": { display: "none" },
+                    boxShadow: "none",
+                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                    borderRadius: 4,
+                    overflow: "hidden",
+                    background: alpha(theme.palette.background.paper, 0.8),
+                    backdropFilter: "blur(20px)",
+                    transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                    animation: `${scaleIn} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) ${
+                      0.1 + index * 0.05
+                    }s both`,
+                    "&.Mui-expanded": {
+                      boxShadow: `0 8px 32px ${alpha(
+                        theme.palette.primary.main,
+                        0.1
+                      )}`,
+                      transform: "translateY(-2px)",
+                    },
+                  }}
+                >
+                  <AccordionSummary
+                    expandIcon={<ExpandMore />}
                     sx={{
-                      "&:before": { display: "none" },
-                      boxShadow: "none",
-                      border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                      borderRadius: 3,
-                      overflow: "hidden",
-                      transition: "all 0.3s ease",
-                      "&.Mui-expanded": {
-                        boxShadow: `0 8px 32px ${alpha(
-                          theme.palette.primary.main,
-                          0.1
-                        )}`,
-                        transform: "scale(1.02)",
+                      py: 2,
+                      "& .MuiAccordionSummary-content": {
+                        my: 1,
                       },
                     }}
                   >
-                    <AccordionSummary
-                      expandIcon={<ExpandMore />}
-                      sx={{
-                        py: 2,
-                        "& .MuiAccordionSummary-content": {
-                          my: 1,
-                        },
-                      }}
+                    <Typography variant="h6" fontWeight={600}>
+                      {faq.question}
+                    </Typography>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ pt: 0 }}>
+                    <Typography
+                      variant="body1"
+                      color="text.secondary"
+                      sx={{ lineHeight: 1.7 }}
                     >
-                      <Typography variant="h6" fontWeight={600}>
-                        {faq.question}
-                      </Typography>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ pt: 0 }}>
-                      <Typography
-                        variant="body1"
-                        color="text.secondary"
-                        sx={{ lineHeight: 1.7 }}
-                      >
-                        {faq.answer}
-                      </Typography>
-                    </AccordionDetails>
-                  </Accordion>
-                </Fade>
+                      {faq.answer}
+                    </Typography>
+                  </AccordionDetails>
+                </Accordion>
               ))}
             </Stack>
-          </Container>
+          </Box>
         </Box>
 
         {/* CTA Section */}
@@ -1389,6 +1516,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             textAlign: "center",
             position: "relative",
             overflow: "hidden",
+            maxWidth: "100%",
           }}
         >
           <Box
@@ -1402,18 +1530,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               backgroundImage: `radial-gradient(circle at 25% 25%, white 2px, transparent 2px),
                                radial-gradient(circle at 75% 75%, white 2px, transparent 2px)`,
               backgroundSize: "50px 50px",
-              animation: `${float} 10s ease-in-out infinite`,
+              animation: `${gentleFloat} 15s ease-in-out infinite`,
             }}
           />
 
-          <Container maxWidth="md" sx={{ position: "relative" }}>
+          <Box
+            sx={{
+              px: { xs: 3, md: 6, lg: 8 },
+              maxWidth: "1000px",
+              mx: "auto",
+              position: "relative",
+            }}
+          >
             <Typography
               variant="h2"
               gutterBottom
               sx={{
                 fontWeight: 900,
-                mb: 3,
-                animation: `${slideInFromBottom} 0.8s ease-out`,
+                mb: 4,
+                animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)`,
               }}
             >
               Ready to Clean Up Your Life?
@@ -1421,12 +1556,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <Typography
               variant="h5"
               sx={{
-                mb: 4,
+                mb: 6,
                 opacity: 0.95,
                 maxWidth: 600,
                 mx: "auto",
                 lineHeight: 1.6,
-                animation: `${slideInFromBottom} 1s ease-out`,
+                animation: `${fadeInUp} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.1s both`,
               }}
             >
               Join thousands who've finally gotten their digital life together.
@@ -1434,7 +1569,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               charge until trial ends.
             </Typography>
 
-            <Zoom in timeout={1200}>
+            <Box
+              sx={{
+                animation: `${scaleIn} 0.8s cubic-bezier(0.25, 0.8, 0.25, 1) 0.3s both`,
+              }}
+            >
               {user ? (
                 <Button
                   variant="contained"
@@ -1447,9 +1586,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     py: 2,
                     fontSize: { xs: "1rem", sm: "1.2rem" },
                     fontWeight: 700,
+                    borderRadius: 4,
+                    transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
                     "&:hover": {
                       bgcolor: "grey.100",
-                      transform: "translateY(-2px)",
+                      transform: "translateY(-3px)",
+                      boxShadow: "0 12px 30px rgba(0,0,0,0.2)",
                     },
                   }}
                 >
@@ -1459,7 +1601,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <Button
                   variant="contained"
                   size="large"
-                  onClick={() => handleSubscribe("free-trial")}
+                  onClick={() => handleSubscribe("free-trial", "free-trial")}
                   sx={{
                     bgcolor: "white",
                     color: "primary.main",
@@ -1467,17 +1609,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     py: 2,
                     fontSize: { xs: "1rem", sm: "1.2rem" },
                     fontWeight: 700,
+                    borderRadius: 4,
+                    transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
                     "&:hover": {
                       bgcolor: "grey.100",
-                      transform: "translateY(-2px)",
+                      transform: "translateY(-3px)",
+                      boxShadow: "0 12px 30px rgba(0,0,0,0.2)",
                     },
                   }}
                 >
                   Start Free Trial (14 Days)
                 </Button>
               )}
-            </Zoom>
-          </Container>
+            </Box>
+          </Box>
         </Box>
 
         {/* Footer */}

@@ -17,6 +17,7 @@ import {
   alpha,
   useTheme,
   useMediaQuery,
+  Collapse,
 } from "@mui/material";
 import {
   FolderOpen,
@@ -30,6 +31,7 @@ import {
   Settings,
 } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
+import neatlyLogo from "../../assets/neatly_icon.png";
 
 type Route =
   | "landing"
@@ -68,6 +70,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [accountMenuAnchor, setAccountMenuAnchor] =
     useState<null | HTMLElement>(null);
   const [activeSection, setActiveSection] = useState("home");
+  const [isCompact, setIsCompact] = useState(false);
+  const [lastScrollY, setLastScrollY] = useState(0);
 
   const trigger = useScrollTrigger({
     disableHysteresis: true,
@@ -87,6 +91,43 @@ export const Navbar: React.FC<NavbarProps> = ({
     { label: "Home", route: "landing" as Route },
     { label: "Contact Support", route: "contact-support" as Route },
   ];
+
+  // Handle scroll behavior for compact mode
+  useEffect(() => {
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY;
+          const scrollThreshold = 50;
+          const directionThreshold = 10; // Reverted back to original
+
+          if (currentScrollY > scrollThreshold) {
+            const scrollDirection = currentScrollY - lastScrollY;
+
+            if (scrollDirection > directionThreshold && !isCompact) {
+              // Scrolling down with momentum
+              setIsCompact(true);
+            } else if (scrollDirection < -directionThreshold && isCompact) {
+              // Scrolling up with momentum
+              setIsCompact(false);
+            }
+          } else {
+            // Near the top
+            setIsCompact(false);
+          }
+
+          setLastScrollY(currentScrollY);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [lastScrollY, isCompact]);
 
   // Scroll to section (for landing page)
   const scrollToSection = (sectionId: string) => {
@@ -180,167 +221,348 @@ export const Navbar: React.FC<NavbarProps> = ({
         position="sticky"
         elevation={0}
         sx={{
-          bgcolor: trigger
-            ? alpha(theme.palette.background.paper, 0.95)
-            : "transparent",
-          backdropFilter: "blur(20px)",
-          borderBottom: trigger
-            ? `1px solid ${alpha(theme.palette.divider, 0.1)}`
-            : "none",
-          transition: "all 0.3s ease",
+          bgcolor: "transparent",
+          backdropFilter: "none",
+          borderBottom: "none",
+          transition: "all 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
+          px: { xs: 2, md: 4 },
+          py: 1,
         }}
       >
-        <Toolbar sx={{ py: 1, px: { xs: 2, md: 3 } }}>
-          {/* Back button and brand */}
-          <Stack
-            direction="row"
-            alignItems="center"
-            spacing={2}
-            sx={{ flexGrow: 1 }}
+        <Box
+          sx={{
+            width: isCompact && !isMobile ? "80%" : "100%",
+            maxWidth: isCompact && !isMobile ? "900px" : "100%",
+            mx: "auto",
+            transition: "all 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)", // Longer duration, ensure all properties animate
+            bgcolor: alpha(theme.palette.background.paper, 0.6), // More transparent
+            borderRadius: 6,
+            backdropFilter: "blur(25px)", // Stronger blur
+            WebkitBackdropFilter: "blur(25px)", // Safari support
+            border: `1px solid ${alpha(theme.palette.divider, 0.2)}`, // More visible border
+            boxShadow: `0 8px 32px ${alpha(
+              theme.palette.common.black,
+              0.12
+            )}, inset 0 1px 0 ${alpha(theme.palette.common.white, 0.1)}`, // Added inset highlight
+            overflow: "hidden", // Prevent content from breaking out during animation
+            willChange: "width, max-width", // Optimize for width animations
+          }}
+        >
+          <Toolbar
+            sx={{
+              py: 1.5,
+              px: isCompact ? 2 : 3, // Reduce container padding when compact
+              minHeight: "56px !important", // Fixed height to prevent growing
+              height: "56px", // Explicit height
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              transition: "padding 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
+            }}
           >
-            {(showBackButton || canGoBack) && (
-              <IconButton
-                onClick={handleBackClick}
+            {/* Left Section: Back button and brand */}
+            <Box sx={{ display: "flex", alignItems: "center", minWidth: 0 }}>
+              {(showBackButton || canGoBack) && (
+                <IconButton
+                  onClick={handleBackClick}
+                  sx={{
+                    mr: 1,
+                    transition: "all 0.3s ease",
+                    "&:hover": {
+                      transform: "translateX(-2px)",
+                      bgcolor: alpha(theme.palette.primary.main, 0.1),
+                    },
+                    "&:focus": {
+                      outline: "none",
+                    },
+                    "&:focus-visible": {
+                      outline: "none",
+                    },
+                  }}
+                >
+                  <ArrowBack />
+                </IconButton>
+              )}
+
+              <Box
                 sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  cursor: "pointer",
                   transition: "all 0.3s ease",
                   "&:hover": {
-                    transform: "translateX(-4px)",
-                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                    transform: "translateY(-1px)",
                   },
+                  minWidth: 0, // Allow shrinking
                 }}
+                onClick={() => onNavigate("landing")}
               >
-                <ArrowBack />
-              </IconButton>
-            )}
+                {/* <FolderOpen
+                  sx={{
+                    fontSize: 28,
+                    mr: 1,
+                    color: "primary.main",
+                    flexShrink: 0,
+                  }}
+                /> */}
+                <Box
+                  component="img"
+                  src={neatlyLogo}
+                  alt="Neatly Logo"
+                  sx={{
+                    height: 40,
+                    width: "auto",
+                    filter:
+                      mode === "dark"
+                        ? "invert(88%) sepia(11%) saturate(4944%) hue-rotate(176deg) brightness(99%) contrast(97%)"
+                        : "invert(47%) sepia(27%) saturate(1393%) hue-rotate(175deg) brightness(83%) contrast(89%)",
+                  }}
+                />
 
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                cursor: "pointer",
-              }}
-              onClick={() => onNavigate("landing")}
-            >
-              <FolderOpen sx={{ fontSize: 32, mr: 1, color: "primary.main" }} />
-              <Typography
-                variant="h4"
-                sx={{
-                  fontWeight: 800,
-                  background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                  backgroundClip: "text",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}
-              >
-                Neatly
-              </Typography>
+                {/* Brand name with smooth collapse */}
+                <Box
+                  sx={{
+                    overflow: "hidden",
+                    transition: "all 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
+                    width: isCompact && !isMobile ? "0px" : "auto",
+                    opacity: isCompact && !isMobile ? 0 : 1,
+                  }}
+                >
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      fontWeight: 800,
+                      background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                      backgroundClip: "text",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      whiteSpace: "nowrap", // Prevent text wrapping
+                    }}
+                  >
+                    Neatly
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Page title for non-landing pages */}
+              {currentRoute !== "landing" && !isCompact && (
+                <Typography variant="h6" color="text.secondary" sx={{ ml: 2 }}>
+                  / {getPageTitle()}
+                </Typography>
+              )}
             </Box>
 
-            {/* Page title for non-landing pages */}
-            {currentRoute !== "landing" && (
-              <Typography variant="h6" color="text.secondary" sx={{ ml: 2 }}>
-                / {getPageTitle()}
-              </Typography>
-            )}
-          </Stack>
+            {!isMobile ? (
+              <>
+                {/* Center Section: Navigation items */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: isCompact ? 0.5 : 1,
+                    transition: "all 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                  }}
+                >
+                  {/* Landing page navigation */}
+                  {currentRoute === "landing" && (
+                    <>
+                      {navItems.map((item) => (
+                        <Button
+                          key={item.section}
+                          onClick={() => scrollToSection(item.section)}
+                          sx={{
+                            color:
+                              activeSection === item.section
+                                ? "primary.main"
+                                : "text.primary",
+                            fontWeight:
+                              activeSection === item.section ? 600 : 400,
+                            fontSize: "0.95rem", // Keep font size consistent
+                            px: isCompact ? 1.5 : 2, // Only reduce padding slightly
+                            py: 1,
+                            borderRadius: 2,
+                            transition:
+                              "all 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                            whiteSpace: "nowrap",
+                            minWidth: "auto",
+                            "&:hover": {
+                              bgcolor: alpha(theme.palette.primary.main, 0.08),
+                            },
+                            "&:focus": {
+                              outline: "none",
+                            },
+                            "&:focus-visible": {
+                              outline: "none",
+                            },
+                          }}
+                        >
+                          {item.label}
+                        </Button>
+                      ))}
+                    </>
+                  )}
 
-          {!isMobile ? (
-            <>
-              {/* Landing page navigation */}
-              {currentRoute === "landing" && (
-                <>
-                  {navItems.map((item) => (
-                    <Button
-                      key={item.section}
-                      onClick={() => scrollToSection(item.section)}
+                  {/* Main navigation for other pages */}
+                  {currentRoute !== "landing" && (
+                    <>
+                      {mainNavItems.map((item) => (
+                        <Button
+                          key={item.route}
+                          onClick={() => onNavigate(item.route)}
+                          sx={{
+                            color:
+                              currentRoute === item.route
+                                ? "primary.main"
+                                : "text.primary",
+                            fontWeight: currentRoute === item.route ? 600 : 400,
+                            fontSize: "0.95rem", // Keep font size consistent
+                            px: isCompact ? 1.5 : 2, // Only reduce padding slightly
+                            py: 1,
+                            borderRadius: 2,
+                            transition:
+                              "all 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                            whiteSpace: "nowrap",
+                            minWidth: "auto",
+                            "&:hover": {
+                              bgcolor: alpha(theme.palette.primary.main, 0.08),
+                            },
+                            "&:focus": {
+                              outline: "none",
+                            },
+                            "&:focus-visible": {
+                              outline: "none",
+                            },
+                          }}
+                        >
+                          {item.label}
+                        </Button>
+                      ))}
+                    </>
+                  )}
+                </Box>
+
+                {/* Right Section: Auth buttons and user menu */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: isCompact ? 0.5 : 1,
+                  }}
+                >
+                  {loading ? (
+                    <CircularProgress size={24} />
+                  ) : user ? (
+                    <IconButton
+                      onClick={handleAccountMenuOpen}
                       sx={{
-                        mx: 1,
-                        color:
-                          activeSection === item.section
-                            ? "primary.main"
-                            : "text.primary",
-                        fontWeight: activeSection === item.section ? 600 : 400,
-                        fontSize: "1rem",
-                        position: "relative",
-                        "&::after": {
-                          content: '""',
-                          position: "absolute",
-                          bottom: 0,
-                          left: "50%",
-                          width: activeSection === item.section ? "100%" : "0%",
-                          height: 2,
-                          bgcolor: "primary.main",
-                          transition: "all 0.3s ease",
-                          transform: "translateX(-50%)",
+                        "&:focus": {
+                          outline: "none",
+                        },
+                        "&:focus-visible": {
+                          outline: "none",
                         },
                       }}
                     >
-                      {item.label}
-                    </Button>
-                  ))}
-                </>
-              )}
+                      <AccountCircle />
+                    </IconButton>
+                  ) : (
+                    <>
+                      {/* Login button - always visible, just tighter spacing */}
+                      <Button
+                        onClick={() => onOpenAuth?.("login")}
+                        sx={{
+                          color: "text.primary",
+                          fontSize: "0.95rem", // Keep font size consistent
+                          px: isCompact ? 1.5 : 2, // Only reduce padding slightly
+                          py: 1,
+                          borderRadius: 2,
+                          transition:
+                            "all 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                          whiteSpace: "nowrap",
+                          minWidth: "auto",
+                          "&:hover": {
+                            bgcolor: alpha(theme.palette.primary.main, 0.08),
+                          },
+                          "&:focus": {
+                            outline: "none",
+                          },
+                          "&:focus-visible": {
+                            outline: "none",
+                          },
+                        }}
+                      >
+                        Login
+                      </Button>
 
-              {/* Main navigation for other pages */}
-              {currentRoute !== "landing" && (
-                <>
-                  {mainNavItems.map((item) => (
-                    <Button
-                      key={item.route}
-                      onClick={() => onNavigate(item.route)}
-                      sx={{
-                        mx: 1,
-                        color:
-                          currentRoute === item.route
-                            ? "primary.main"
-                            : "text.primary",
-                        fontWeight: currentRoute === item.route ? 600 : 400,
-                      }}
-                    >
-                      {item.label}
-                    </Button>
-                  ))}
-                </>
-              )}
+                      {/* Sign up button - always visible */}
+                      <Button
+                        onClick={() => onOpenAuth?.("signup")}
+                        variant="contained"
+                        sx={{
+                          fontSize: "0.95rem", // Keep font size consistent
+                          px: isCompact ? 2.5 : 3, // Only reduce padding slightly
+                          py: 1,
+                          borderRadius: 3,
+                          fontWeight: 600,
+                          textTransform: "none",
+                          boxShadow: "none",
+                          whiteSpace: "nowrap",
+                          minWidth: "auto",
+                          transition:
+                            "all 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                          "&:hover": {
+                            boxShadow: `0 4px 12px ${alpha(
+                              theme.palette.primary.main,
+                              0.3
+                            )}`,
+                          },
+                          "&:focus": {
+                            outline: "none",
+                          },
+                          "&:focus-visible": {
+                            outline: "none",
+                          },
+                        }}
+                      >
+                        Sign up
+                      </Button>
+                    </>
+                  )}
 
-              {/* Auth buttons and user menu */}
-              {loading ? (
-                <CircularProgress size={24} sx={{ mx: 2 }} />
-              ) : user ? (
-                <>
-                  <IconButton onClick={handleAccountMenuOpen} sx={{ ml: 1 }}>
-                    <AccountCircle />
+                  <IconButton
+                    onClick={onToggleMode}
+                    sx={{
+                      ml: isCompact ? 0.5 : 1,
+                      transition: "all 0.7s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                      "&:focus": {
+                        outline: "none",
+                      },
+                      "&:focus-visible": {
+                        outline: "none",
+                      },
+                    }}
+                  >
+                    {mode === "light" ? <DarkMode /> : <LightMode />}
                   </IconButton>
-                </>
-              ) : (
-                <>
-                  <Button
-                    variant="text"
-                    sx={{ mx: 1 }}
-                    onClick={() => onOpenAuth?.("login")}
-                  >
-                    Sign In
-                  </Button>
-                  <Button
-                    variant="contained"
-                    onClick={() => onOpenAuth?.("signup")}
-                    sx={{ ml: 1 }}
-                  >
-                    Get Started
-                  </Button>
-                </>
-              )}
-
-              <IconButton onClick={onToggleMode} sx={{ ml: 2 }}>
-                {mode === "light" ? <DarkMode /> : <LightMode />}
+                </Box>
+              </>
+            ) : (
+              <IconButton
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                sx={{
+                  "&:focus": {
+                    outline: "none",
+                  },
+                  "&:focus-visible": {
+                    outline: "none",
+                  },
+                }}
+              >
+                {mobileMenuOpen ? <Close /> : <MenuIcon />}
               </IconButton>
-            </>
-          ) : (
-            <IconButton onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-              {mobileMenuOpen ? <Close /> : <MenuIcon />}
-            </IconButton>
-          )}
-        </Toolbar>
+            )}
+          </Toolbar>
+        </Box>
       </AppBar>
 
       {/* Mobile Menu */}
@@ -348,14 +570,16 @@ export const Navbar: React.FC<NavbarProps> = ({
         <Box
           sx={{
             position: "fixed",
-            top: 64,
-            left: 0,
-            right: 0,
-            bgcolor: "background.paper",
+            top: 80,
+            left: 16,
+            right: 16,
+            bgcolor: alpha(theme.palette.background.paper, 0.95),
+            backdropFilter: "blur(20px)",
             zIndex: 1200,
             p: 3,
-            boxShadow: 4,
-            borderRadius: "0 0 16px 16px",
+            borderRadius: 4,
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            boxShadow: `0 12px 40px ${alpha(theme.palette.common.black, 0.15)}`,
           }}
         >
           <Stack spacing={2}>
@@ -369,6 +593,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     variant={
                       activeSection === item.section ? "contained" : "text"
                     }
+                    sx={{
+                      "&:focus": {
+                        outline: "none",
+                      },
+                      "&:focus-visible": {
+                        outline: "none",
+                      },
+                    }}
                   >
                     {item.label}
                   </Button>
@@ -383,30 +615,44 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setMobileMenuOpen(false);
                     }}
                     variant={currentRoute === item.route ? "contained" : "text"}
+                    sx={{
+                      "&:focus": {
+                        outline: "none",
+                      },
+                      "&:focus-visible": {
+                        outline: "none",
+                      },
+                    }}
                   >
                     {item.label}
                   </Button>
                 ))}
 
-            <Divider />
+            <Divider sx={{ my: 1 }} />
 
             {loading ? (
               <CircularProgress sx={{ alignSelf: "center" }} />
             ) : user ? (
-              <>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    handleSignOut();
-                    setMobileMenuOpen(false);
-                  }}
-                >
-                  Sign Out
-                </Button>
-              </>
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={() => {
+                  handleSignOut();
+                  setMobileMenuOpen(false);
+                }}
+                sx={{
+                  "&:focus": {
+                    outline: "none",
+                  },
+                  "&:focus-visible": {
+                    outline: "none",
+                  },
+                }}
+              >
+                Sign Out
+              </Button>
             ) : (
-              <>
+              <Stack spacing={2}>
                 <Button
                   fullWidth
                   variant="outlined"
@@ -414,8 +660,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onOpenAuth?.("login");
                     setMobileMenuOpen(false);
                   }}
+                  sx={{
+                    "&:focus": {
+                      outline: "none",
+                    },
+                    "&:focus-visible": {
+                      outline: "none",
+                    },
+                  }}
                 >
-                  Sign In
+                  Login
                 </Button>
                 <Button
                   fullWidth
@@ -424,14 +678,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onOpenAuth?.("signup");
                     setMobileMenuOpen(false);
                   }}
+                  sx={{
+                    "&:focus": {
+                      outline: "none",
+                    },
+                    "&:focus-visible": {
+                      outline: "none",
+                    },
+                  }}
                 >
-                  Get Started
+                  Sign up
                 </Button>
-              </>
+              </Stack>
             )}
 
-            <Box sx={{ display: "flex", justifyContent: "center" }}>
-              <IconButton onClick={onToggleMode}>
+            <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
+              <IconButton
+                onClick={onToggleMode}
+                sx={{
+                  "&:focus": {
+                    outline: "none",
+                  },
+                  "&:focus-visible": {
+                    outline: "none",
+                  },
+                }}
+              >
                 {mode === "light" ? <DarkMode /> : <LightMode />}
               </IconButton>
             </Box>
@@ -446,7 +718,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClose={handleAccountMenuClose}
         PaperProps={{
           sx: {
-            borderRadius: 2,
+            borderRadius: 3,
+            bgcolor: alpha(theme.palette.background.paper, 0.95),
+            backdropFilter: "blur(20px)",
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
             boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.12)}`,
             mt: 1,
           },
@@ -459,11 +734,29 @@ export const Navbar: React.FC<NavbarProps> = ({
             onNavigate("dashboard");
             handleAccountMenuClose();
           }}
+          sx={{
+            borderRadius: 2,
+            mx: 1,
+            my: 0.5,
+            "&:hover": {
+              bgcolor: alpha(theme.palette.primary.main, 0.1),
+            },
+          }}
         >
           <Settings sx={{ mr: 2 }} />
           Dashboard
         </MenuItem>
-        <MenuItem onClick={handleSignOut}>
+        <MenuItem
+          onClick={handleSignOut}
+          sx={{
+            borderRadius: 2,
+            mx: 1,
+            my: 0.5,
+            "&:hover": {
+              bgcolor: alpha(theme.palette.primary.main, 0.1),
+            },
+          }}
+        >
           <ExitToApp sx={{ mr: 2 }} />
           Sign Out
         </MenuItem>
